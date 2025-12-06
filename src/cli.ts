@@ -20,7 +20,7 @@ import {
   getConfiguredOrgs,
   extractOrg,
 } from "./core/tokens.js";
-import { initConfig, getDefaultModel, getConfig } from "./core/config.js";
+import { initConfig, getDefaultModel, getConfig, getFleetDefaults } from "./core/config.js";
 import type { Agent } from "./core/types.js";
 import { VERSION } from "./index.js";
 
@@ -168,11 +168,20 @@ fleetCmd
   .command("list")
   .description("List all agents")
   .option("--running", "Show only running agents")
+  .option("--status <status>", "Filter by status (RUNNING, COMPLETED, FAILED, CANCELLED)")
   .option("--json", "Output as JSON")
   .action(async (opts) => {
     try {
       const fleet = new Fleet();
-      const result = opts.running ? await fleet.running() : await fleet.list();
+      let result;
+      
+      if (opts.running) {
+        result = await fleet.running();
+      } else if (opts.status) {
+        result = await fleet.listByStatus(opts.status.toUpperCase());
+      } else {
+        result = await fleet.list();
+      }
       
       if (!result.success) {
         console.error(`❌ ${result.error}`);
@@ -197,22 +206,167 @@ fleetCmd
   });
 
 fleetCmd
+  .command("repos")
+  .description("List available repositories")
+  .option("--json", "Output as JSON")
+  .action(async (opts) => {
+    try {
+      const fleet = new Fleet();
+      const result = await fleet.repositories();
+      
+      if (!result.success) {
+        console.error(`❌ ${result.error}`);
+        process.exit(1);
+      }
+
+      if (opts.json) {
+        output(result.data, true);
+      } else {
+        console.log("=== Available Repositories ===\n");
+        for (const repo of result.data ?? []) {
+          const visibility = repo.isPrivate ? "🔒" : "🌍";
+          console.log(`${visibility} ${repo.fullName} (${repo.defaultBranch})`);
+        }
+        console.log(`\nTotal: ${result.data?.length ?? 0} repositories`);
+      }
+    } catch (err) {
+      console.error("❌ Failed to list repositories:", err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+fleetCmd
+  .command("get")
+  .description("Get details for a specific agent")
+  .argument("<agent-id>", "Agent ID")
+  .option("--json", "Output as JSON")
+  .action(async (agentId, opts) => {
+    try {
+      const fleet = new Fleet();
+      const result = await fleet.status(agentId);
+      
+      if (!result.success) {
+        console.error(`❌ ${result.error}`);
+        process.exit(1);
+      }
+
+      const agent = result.data;
+      if (!agent) {
+        console.error(`❌ Agent not found: ${agentId}`);
+        process.exit(1);
+      }
+
+      if (opts.json) {
+        output(agent, true);
+      } else {
+        console.log("=== Agent Details ===\n");
+        console.log(`ID:         ${agent.id}`);
+        console.log(`Name:       ${agent.name ?? "(unnamed)"}`);
+        console.log(`Status:     ${agent.status}`);
+        console.log(`Repository: ${agent.source?.repository ?? "N/A"}`);
+        console.log(`Ref:        ${agent.source?.ref ?? "N/A"}`);
+        if (agent.target?.branchName) {
+          console.log(`Branch:     ${agent.target.branchName}`);
+        }
+        if (agent.target?.prUrl) {
+          console.log(`PR:         ${agent.target.prUrl}`);
+        }
+        if (agent.target?.url) {
+          console.log(`URL:        ${agent.target.url}`);
+        }
+        if (agent.createdAt) {
+          console.log(`Created:    ${agent.createdAt}`);
+        }
+        if (agent.summary) {
+          console.log(`\nSummary:\n${agent.summary}`);
+        }
+        if (agent.error) {
+          console.log(`\n❌ Error:\n${agent.error}`);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Failed to get agent:", err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+fleetCmd
+  .command("conversation")
+  .description("Get conversation history for an agent")
+  .argument("<agent-id>", "Agent ID")
+  .option("--json", "Output as JSON")
+  .option("-o, --output <path>", "Save to file")
+  .action(async (agentId, opts) => {
+    try {
+      const fleet = new Fleet();
+      const result = await fleet.conversation(agentId);
+      
+      if (!result.success) {
+        console.error(`❌ ${result.error}`);
+        process.exit(1);
+      }
+
+      const conv = result.data;
+      if (!conv) {
+        console.error(`❌ Conversation not found for agent: ${agentId}`);
+        process.exit(1);
+      }
+
+      if (opts.output) {
+        writeFileSync(opts.output, JSON.stringify(conv, null, 2));
+        console.log(`✅ Saved conversation to ${opts.output}`);
+        return;
+      }
+
+      if (opts.json) {
+        output(conv, true);
+      } else {
+        console.log(`=== Conversation (${conv.totalMessages} messages) ===\n`);
+        for (const msg of conv.messages ?? []) {
+          const role = msg.type === "user_message" ? "👤 USER" : "🤖 ASSISTANT";
+          const time = msg.timestamp ? ` (${msg.timestamp})` : "";
+          console.log(`${role}${time}:`);
+          console.log(msg.text);
+          console.log("\n" + "-".repeat(60) + "\n");
+        }
+      }
+    } catch (err) {
+      console.error("❌ Failed to get conversation:", err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+fleetCmd
   .command("spawn")
   .description("Spawn a new agent")
   .argument("<repo>", "Repository URL (https://github.com/org/repo)")
   .argument("<task>", "Task description")
-  .option("--ref <ref>", "Git ref", "main")
-  .option("--model <model>", "AI model to use", getDefaultModel())
+  .option("--ref <ref>", "Git ref (branch, tag, commit)", "main")
+  .option("--auto-pr", "Auto-create PR when agent completes (or set in config)")
+  .option("--no-auto-pr", "Disable auto-create PR")
+  .option("--branch <name>", "Custom branch name for the agent")
+  .option("--as-app", "Open PR as Cursor GitHub App (or set in config)")
   .option("--json", "Output as JSON")
   .action(async (repo, task, opts) => {
     try {
       const fleet = new Fleet();
+      const defaults = getFleetDefaults();
+      
+      // Merge CLI options with config defaults
+      // Note: Commander sets opts.autoPr to false for --no-auto-pr, true for --auto-pr, undefined for neither
+      // We need to check if it was explicitly set (not undefined) before falling back to defaults
+      const autoCreatePr = opts.autoPr !== undefined ? opts.autoPr : (defaults.autoCreatePr ?? false);
+      const openAsCursorGithubApp = opts.asApp ?? defaults.openAsCursorGithubApp ?? false;
       
       const result = await fleet.spawn({
         repository: repo,
         task,
         ref: opts.ref,
-        model: opts.model,
+        target: {
+          autoCreatePr,
+          branchName: opts.branch,
+          openAsCursorGithubApp,
+        },
       });
 
       if (!result.success) {
@@ -226,7 +380,10 @@ fleetCmd
         console.log("=== Agent Spawned ===\n");
         console.log(`ID:     ${result.data?.id}`);
         console.log(`Status: ${result.data?.status}`);
-        console.log(`Model:  ${opts.model}`);
+        console.log(`Repo:   ${repo}`);
+        console.log(`Ref:    ${opts.ref}`);
+        if (opts.branch) console.log(`Branch: ${opts.branch}`);
+        if (autoCreatePr) console.log(`Auto PR: enabled`);
       }
     } catch (err) {
       console.error("❌ Spawn failed:", err instanceof Error ? err.message : err);
@@ -252,6 +409,34 @@ fleetCmd
       console.log(`✅ Follow-up sent to ${agentId}`);
     } catch (err) {
       console.error("❌ Followup failed:", err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+fleetCmd
+  .command("models")
+  .description("List available Cursor models")
+  .option("--json", "Output as JSON")
+  .action(async (opts) => {
+    try {
+      const fleet = new Fleet();
+      const result = await fleet.listModels();
+      
+      if (!result.success) {
+        console.error(`❌ ${result.error}`);
+        process.exit(1);
+      }
+
+      if (opts.json) {
+        output(result.data, true);
+      } else {
+        console.log("=== Available Cursor Models ===\n");
+        for (const model of result.data ?? []) {
+          console.log(`  - ${model}`);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Failed to list models:", err instanceof Error ? err.message : err);
       process.exit(1);
     }
   });
@@ -335,6 +520,90 @@ fleetCmd
 const triageCmd = program
   .command("triage")
   .description("AI-powered triage and analysis");
+
+triageCmd
+  .command("models")
+  .description("List available AI models for triage")
+  .option("--provider <name>", "Provider to list models for (anthropic, openai, google, mistral)")
+  .option("--json", "Output as JSON")
+  .action(async (opts) => {
+    // Common models by provider
+    const modelsByProvider: Record<string, { id: string; name: string; description: string }[]> = {
+      anthropic: [
+        { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Balanced performance (recommended)" },
+        { id: "claude-opus-4-20250514", name: "Claude Opus 4", description: "Most capable, complex reasoning" },
+        { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5", description: "Latest Sonnet release" },
+        { id: "claude-opus-4-5-20251101", name: "Claude Opus 4.5", description: "Latest Opus release" },
+        { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fastest, lightweight tasks" },
+      ],
+      openai: [
+        { id: "gpt-4o", name: "GPT-4o", description: "Flagship multimodal (recommended)" },
+        { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and affordable" },
+        { id: "gpt-4-turbo", name: "GPT-4 Turbo", description: "Previous flagship" },
+        { id: "gpt-4", name: "GPT-4", description: "Original GPT-4" },
+        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Fast, cost-effective" },
+        { id: "o1", name: "o1", description: "Advanced reasoning" },
+        { id: "o1-mini", name: "o1-mini", description: "Fast reasoning" },
+      ],
+      google: [
+        { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Most capable (recommended)" },
+        { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Fast and efficient" },
+        { id: "gemini-1.5-flash-8b", name: "Gemini 1.5 Flash 8B", description: "Lightweight, high volume" },
+        { id: "gemini-1.0-pro", name: "Gemini 1.0 Pro", description: "Previous generation" },
+      ],
+      mistral: [
+        { id: "mistral-large-latest", name: "Mistral Large", description: "Most capable (recommended)" },
+        { id: "mistral-medium-latest", name: "Mistral Medium", description: "Balanced" },
+        { id: "mistral-small-latest", name: "Mistral Small", description: "Fast and efficient" },
+        { id: "codestral-latest", name: "Codestral", description: "Code-optimized" },
+        { id: "open-mixtral-8x22b", name: "Mixtral 8x22B", description: "Open-weight MoE" },
+      ],
+      azure: [
+        { id: "gpt-4o", name: "GPT-4o", description: "Use your Azure deployment name" },
+        { id: "gpt-4", name: "GPT-4", description: "Use your Azure deployment name" },
+        { id: "gpt-35-turbo", name: "GPT-3.5 Turbo", description: "Use your Azure deployment name" },
+      ],
+    };
+
+    const providers = opts.provider ? [opts.provider] : Object.keys(modelsByProvider);
+    
+    if (opts.json) {
+      const result = providers.reduce((acc, p) => {
+        if (modelsByProvider[p]) {
+          acc[p] = modelsByProvider[p];
+        }
+        return acc;
+      }, {} as Record<string, typeof modelsByProvider.anthropic>);
+      output(result, true);
+      return;
+    }
+
+    console.log("=== Available AI Models for Triage ===\n");
+    
+    for (const provider of providers) {
+      const models = modelsByProvider[provider];
+      if (!models) {
+        console.log(`Unknown provider: ${provider}\n`);
+        continue;
+      }
+      
+      console.log(`📦 ${provider.toUpperCase()}`);
+      console.log("-".repeat(60));
+      for (const model of models) {
+        console.log(`  ${model.id.padEnd(30)} ${model.description}`);
+      }
+      console.log();
+    }
+
+    console.log("💡 Configure in agentic.config.json:");
+    console.log('   { "triage": { "provider": "anthropic", "model": "claude-sonnet-4-20250514" } }');
+    console.log();
+    console.log("📚 For live model lists, check provider documentation:");
+    console.log("   Anthropic: https://docs.anthropic.com/en/docs/about-claude/models");
+    console.log("   OpenAI:    https://platform.openai.com/docs/models");
+    console.log("   Google:    https://ai.google.dev/gemini-api/docs/models/gemini");
+    console.log("   Mistral:   https://docs.mistral.ai/getting-started/models/");
+  });
 
 triageCmd
   .command("quick")
@@ -631,37 +900,228 @@ program
 
 program
   .command("init")
-  .description("Create a sample configuration file")
+  .description("Initialize configuration")
   .option("--force", "Overwrite existing config file")
-  .action((opts) => {
+  .option("--non-interactive", "Skip prompts, use detected values only")
+  .action(async (opts) => {
     const configPath = "agentic.config.json";
     
     if (existsSync(configPath) && !opts.force) {
       console.error(`❌ ${configPath} already exists. Use --force to overwrite.`);
       process.exit(1);
     }
+
+    const isInteractive = process.stdout.isTTY && !opts.nonInteractive;
     
-    const sampleConfig = {
-      "$schema": "https://agentic-control.dev/schema/config.json",
-      "tokens": {
-        "organizations": {
-          "my-org": {
-            "name": "my-org",
-            "tokenEnvVar": "GITHUB_MY_ORG_TOKEN"
-          }
-        },
-        "defaultTokenEnvVar": "GITHUB_TOKEN",
-        "prReviewTokenEnvVar": "GITHUB_TOKEN"
+    // Detect org-specific tokens (GITHUB_*_TOKEN pattern)
+    // Security: Only allow alphanumeric and underscore in org name extraction
+    const organizations: Record<string, { name: string; tokenEnvVar: string }> = {};
+    const SAFE_ORG_PATTERN = /^GITHUB_([A-Za-z0-9_]+)_TOKEN$/;
+    for (const envVar of Object.keys(process.env)) {
+      const match = envVar.match(SAFE_ORG_PATTERN);
+      if (match && match[1] && process.env[envVar]) {
+        // Normalize to lowercase, replace underscores with hyphens
+        const orgName = match[1].toLowerCase().replace(/_/g, "-");
+        // Additional validation: org names must be reasonable length
+        if (orgName.length > 0 && orgName.length <= 39) {
+          organizations[orgName] = { name: orgName, tokenEnvVar: envVar };
+        }
+      }
+    }
+
+    // Detect standard tokens
+    const hasGithubToken = !!process.env.GITHUB_TOKEN;
+    const hasCursorKey = !!process.env.CURSOR_API_KEY;
+    const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+    const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+
+    // Build base config from detected values
+    const config: Record<string, unknown> = {
+      tokens: {
+        organizations: Object.keys(organizations).length > 0 ? organizations : {},
+        defaultTokenEnvVar: hasGithubToken ? "GITHUB_TOKEN" : "GITHUB_TOKEN",
+        prReviewTokenEnvVar: hasGithubToken ? "GITHUB_TOKEN" : "GITHUB_TOKEN",
       },
-      "defaultModel": "claude-sonnet-4-20250514",
-      "defaultRepository": "my-org/my-repo",
-      "logLevel": "info"
+      logLevel: "info",
+      fleet: {
+        autoCreatePr: false,
+      },
+      triage: {
+        provider: hasAnthropicKey ? "anthropic" : hasOpenAIKey ? "openai" : "anthropic",
+        // model will be set below
+      },
     };
+
+    // Interactive prompts for missing values
+    if (isInteractive) {
+      const { input, confirm, select } = await import("@inquirer/prompts");
+      
+      // Ask for default repository if not detected
+      const repoAnswer = await input({
+        message: "Default repository (owner/repo, or leave empty):",
+        default: "",
+      });
+      if (repoAnswer) {
+        config.defaultRepository = repoAnswer;
+      }
+
+      // Ask about fleet defaults
+      const autoPr = await confirm({
+        message: "Auto-create PRs when agents complete?",
+        default: false,
+      });
+      (config.fleet as Record<string, unknown>).autoCreatePr = autoPr;
+
+      // === AI PROVIDER & MODEL SELECTION ===
+      console.log("\n📊 AI Triage Configuration\n");
+      
+      // Select provider
+      const provider = await select({
+        message: "AI provider for triage operations:",
+        choices: [
+          { value: "anthropic", name: "Anthropic (Claude)" + (hasAnthropicKey ? " ✅ key detected" : "") },
+          { value: "openai", name: "OpenAI (GPT)" + (hasOpenAIKey ? " ✅ key detected" : "") },
+          { value: "google", name: "Google AI (Gemini)" },
+          { value: "mistral", name: "Mistral" },
+          { value: "azure", name: "Azure OpenAI" },
+        ],
+        default: hasAnthropicKey ? "anthropic" : hasOpenAIKey ? "openai" : "anthropic",
+      });
+      (config.triage as Record<string, unknown>).provider = provider;
+
+      // Model selection
+      const modelChoice = await select({
+        message: "How would you like to configure the AI model?",
+        choices: [
+          { value: "list-cursor", name: "List available Cursor models (requires CURSOR_API_KEY)" + (hasCursorKey ? " ✅" : " ⚠️") },
+          { value: "common", name: "Choose from common models" },
+          { value: "manual", name: "Enter model ID manually" },
+          { value: "auto", name: "Auto (no default - use provider's default)" },
+        ],
+      });
+
+      let selectedModel: string | undefined;
+
+      let shouldFallbackToCommon = false;
+      
+      if (modelChoice === "list-cursor") {
+        if (!hasCursorKey) {
+          console.log("⚠️  CURSOR_API_KEY not found. Falling back to common models.");
+          shouldFallbackToCommon = true;
+        } else {
+          try {
+            console.log("🔍 Fetching available Cursor models...");
+            const fleet = new Fleet();
+            const modelsResult = await fleet.listModels();
+            
+            if (modelsResult.success && modelsResult.data && modelsResult.data.length > 0) {
+              selectedModel = await select({
+                message: "Select a model:",
+                choices: modelsResult.data.map(m => ({ value: m, name: m })),
+              });
+            } else {
+              console.log("⚠️  Could not fetch models. Falling back to common models.");
+              shouldFallbackToCommon = true;
+            }
+          } catch (err) {
+            console.log(`⚠️  Error fetching models: ${err instanceof Error ? err.message : err}`);
+            shouldFallbackToCommon = true;
+          }
+        }
+      }
+
+      if (!selectedModel && (modelChoice === "common" || shouldFallbackToCommon)) {
+        const commonModels: Record<string, { value: string; name: string }[]> = {
+          anthropic: [
+            { value: "claude-sonnet-4-20250514", name: "Claude Sonnet 4 (recommended)" },
+            { value: "claude-opus-4-20250514", name: "Claude Opus 4 (most capable)" },
+            { value: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5" },
+            { value: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5 (fastest)" },
+          ],
+          openai: [
+            { value: "gpt-4o", name: "GPT-4o (recommended)" },
+            { value: "gpt-4-turbo", name: "GPT-4 Turbo" },
+            { value: "gpt-4", name: "GPT-4" },
+            { value: "gpt-3.5-turbo", name: "GPT-3.5 Turbo (fastest)" },
+          ],
+          google: [
+            { value: "gemini-1.5-pro", name: "Gemini 1.5 Pro (recommended)" },
+            { value: "gemini-1.5-flash", name: "Gemini 1.5 Flash (fastest)" },
+            { value: "gemini-1.0-pro", name: "Gemini 1.0 Pro" },
+          ],
+          mistral: [
+            { value: "mistral-large-latest", name: "Mistral Large (recommended)" },
+            { value: "mistral-medium-latest", name: "Mistral Medium" },
+            { value: "mistral-small-latest", name: "Mistral Small (fastest)" },
+          ],
+          azure: [
+            { value: "gpt-4o", name: "GPT-4o (deployment name)" },
+            { value: "gpt-4", name: "GPT-4 (deployment name)" },
+          ],
+        };
+
+        const providerModels = commonModels[provider as string] ?? commonModels.anthropic;
+        selectedModel = await select({
+          message: `Select ${provider} model:`,
+          choices: providerModels,
+        });
+      }
+
+      if (!selectedModel && modelChoice === "manual") {
+        selectedModel = await input({
+          message: "Enter model ID:",
+          default: provider === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-4o",
+        });
+      }
+
+      if (selectedModel) {
+        (config.triage as Record<string, unknown>).model = selectedModel;
+      }
+      // If "auto" was selected, don't set a model - let the provider use its default
+
+      // Ask for additional orgs
+      console.log("\n🔐 Organization Tokens\n");
+      const addOrg = await confirm({
+        message: "Add organization-specific token mappings?",
+        default: false,
+      });
+      
+      if (addOrg) {
+        let adding = true;
+        while (adding) {
+          const orgName = await input({ message: "Organization name:" });
+          const tokenVar = await input({ 
+            message: `Environment variable for ${orgName}:`,
+            default: `GITHUB_${orgName.toUpperCase().replace(/-/g, "_")}_TOKEN`,
+          });
+          (config.tokens as Record<string, unknown>).organizations = {
+            ...((config.tokens as Record<string, unknown>).organizations as object),
+            [orgName]: { name: orgName, tokenEnvVar: tokenVar },
+          };
+          adding = await confirm({ message: "Add another organization?", default: false });
+        }
+      }
+    } else {
+      // Non-interactive: set sensible defaults
+      (config.triage as Record<string, unknown>).model = hasAnthropicKey 
+        ? "claude-sonnet-4-20250514" 
+        : hasOpenAIKey 
+          ? "gpt-4o" 
+          : "claude-sonnet-4-20250514";
+    }
     
-    writeFileSync(configPath, JSON.stringify(sampleConfig, null, 2) + "\n");
-    console.log(`✅ Created ${configPath}`);
-    console.log("\nEdit this file to configure your organizations and tokens.");
-    console.log("See https://github.com/jbcom/agentic-control#configuration for details.");
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+    console.log(`\n✅ Created ${configPath}`);
+    
+    // Show summary
+    const triage = config.triage as Record<string, unknown>;
+    console.log("\n📋 Configuration Summary:");
+    console.log(`   Provider: ${triage.provider}`);
+    console.log(`   Model: ${triage.model ?? "(auto - provider default)"}`);
+    if (config.defaultRepository) {
+      console.log(`   Default Repo: ${config.defaultRepository}`);
+    }
+    console.log(`   Auto-create PRs: ${(config.fleet as Record<string, unknown>).autoCreatePr}`);
   });
 
 // ============================================

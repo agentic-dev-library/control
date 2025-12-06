@@ -12,7 +12,7 @@
  * GitHub organization configuration for multi-org token management
  */
 export interface OrganizationConfig {
-  /** Organization name (e.g., "FlipsideCrypto", "jbcom") */
+  /** Organization name (e.g., "jbcom", "my-org") */
   name: string;
   /** Environment variable name for the token */
   tokenEnvVar: string;
@@ -287,13 +287,36 @@ export interface HandoffResult {
 
 /**
  * Options for spawning a new agent
+ * 
+ * API Spec: https://cursor.com/docs/cloud-agent/api/endpoints
  */
 export interface SpawnOptions {
+  /** GitHub repository URL (e.g., https://github.com/org/repo) */
   repository: string;
+  /** Task description for the agent */
   task: string;
+  /** Git ref (branch, tag, commit) - defaults to "main" */
   ref?: string;
+  /** Coordination context (for multi-agent orchestration) */
   context?: Record<string, unknown>;
-  model?: string;
+  /** Target configuration */
+  target?: {
+    /** Auto-create PR when agent completes */
+    autoCreatePr?: boolean;
+    /** Custom branch name */
+    branchName?: string;
+    /** Open PR as Cursor GitHub App instead of user */
+    openAsCursorGithubApp?: boolean;
+    /** Skip adding user as reviewer */
+    skipReviewerRequest?: boolean;
+  };
+  /** Webhook for status notifications */
+  webhook?: {
+    /** URL to receive notifications */
+    url: string;
+    /** Secret for payload verification (min 32 chars) */
+    secret?: string;
+  };
 }
 
 /**
@@ -303,6 +326,41 @@ export interface DiamondConfig {
   targetRepos: SpawnOptions[];
   counterparty: SpawnOptions;
   controlCenter: string;
+}
+
+// ============================================
+// Configuration Types
+// ============================================
+
+/**
+ * Fleet defaults configuration
+ */
+export interface FleetConfig {
+  /** Auto-create PR when agent completes */
+  autoCreatePr?: boolean;
+  /** Open PR as Cursor GitHub App instead of user */
+  openAsCursorGithubApp?: boolean;
+  /** Skip adding user as reviewer */
+  skipReviewerRequest?: boolean;
+}
+
+/**
+ * AI Triage configuration
+ * 
+ * Supported providers (install corresponding package):
+ * - anthropic: @ai-sdk/anthropic
+ * - openai: @ai-sdk/openai  
+ * - google: @ai-sdk/google
+ * - mistral: @ai-sdk/mistral
+ * - azure: @ai-sdk/azure
+ */
+export interface TriageConfig {
+  /** AI provider to use */
+  provider?: string;
+  /** Model to use for analysis */
+  model?: string;
+  /** Environment variable name for API key */
+  apiKeyEnvVar?: string;
 }
 
 // ============================================

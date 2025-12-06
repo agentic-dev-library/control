@@ -17,7 +17,7 @@ import { dirname, join } from "node:path";
 import { CursorAPI, type CursorAPIOptions } from "./cursor-api.js";
 import { GitHubClient } from "../github/client.js";
 import { extractOrg } from "../core/tokens.js";
-import { getDefaultModel, log } from "../core/config.js";
+import { log } from "../core/config.js";
 import type {
   Agent,
   AgentStatus,
@@ -149,9 +149,11 @@ export class Fleet {
   // ============================================
 
   /**
-   * Spawn a new agent with model specification
+   * Spawn a new agent
    * 
-   * @param options - Spawn options including repository, task, ref, context, and model
+   * API Spec: https://cursor.com/docs/cloud-agent/api/endpoints
+   * 
+   * @param options - Spawn options including repository, task, ref, target, and webhook
    */
   async spawn(options: SpawnOptions & { context?: SpawnContext }): Promise<Result<Agent>> {
     if (!this.api) {
@@ -159,9 +161,8 @@ export class Fleet {
     }
 
     const task = this.buildTaskWithContext(options.task, options.context);
-    const model = options.model ?? getDefaultModel();
 
-    log.info(`Spawning agent in ${options.repository} (model: ${model})`);
+    log.info(`Spawning agent in ${options.repository}`);
 
     return this.api.launchAgent({
       prompt: { text: task },
@@ -169,7 +170,8 @@ export class Fleet {
         repository: options.repository,
         ref: options.ref ?? "main",
       },
-      model,
+      target: options.target,
+      webhook: options.webhook,
     });
   }
 
@@ -272,6 +274,16 @@ export class Fleet {
       return { success: false, error: "Cursor API not available" };
     }
     return this.api.listRepositories();
+  }
+
+  /**
+   * List available Cursor models
+   */
+  async listModels(): Promise<Result<string[]>> {
+    if (!this.api) {
+      return { success: false, error: "Cursor API not available" };
+    }
+    return this.api.listModels();
   }
 
   // ============================================

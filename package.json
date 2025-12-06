@@ -1,6 +1,6 @@
 {
   "name": "agentic-control",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Unified AI agent fleet management, triage, and orchestration toolkit for control centers",
   "type": "module",
   "main": "./dist/index.js",
@@ -41,35 +41,58 @@
     "LICENSE"
   ],
   "scripts": {
+    "agentic": "tsx src/cli.ts",
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "eslint src/",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build && npm run test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.50",
-    "@modelcontextprotocol/sdk": "^1.23.0",
-    "@octokit/rest": "^21.1.1",
-    "ai": "^5.0.104",
-    "commander": "^13.1.0",
+    "@ai-sdk/mcp": "^0.0.11",
+    "@inquirer/prompts": "8.0.1",
+    "@modelcontextprotocol/sdk": "^1.24.0",
+    "@octokit/rest": "^22.0.1",
+    "ai": "^5.0.106",
+    "commander": "^14.0.2",
+    "cosmiconfig": "9.0.0",
     "env-var": "^7.5.0",
-    "zod": "^3.24.4"
-  },
-  "devDependencies": {
-    "@types/node": "^22.19.1",
-    "@vitest/coverage-v8": "^3.1.4",
-    "typescript": "^5.7.0",
-    "vitest": "^3.1.4"
+    "simple-git": "^3.30.0",
+    "zod": "^4.1.13"
   },
   "peerDependencies": {
-    "cursor-background-agent-mcp-server": "^1.0.0"
+    "@ai-sdk/anthropic": "^2.0.53",
+    "@ai-sdk/azure": "^2.0.78",
+    "@ai-sdk/google": "^2.0.44",
+    "@ai-sdk/mistral": "^2.0.25",
+    "@ai-sdk/openai": "^2.0.76"
   },
   "peerDependenciesMeta": {
-    "cursor-background-agent-mcp-server": {
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/openai": {
+      "optional": true
+    },
+    "@ai-sdk/google": {
+      "optional": true
+    },
+    "@ai-sdk/mistral": {
+      "optional": true
+    },
+    "@ai-sdk/azure": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "^2.0.53",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^4.0.14",
+    "tsx": "4.21.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.14"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -89,7 +112,7 @@
     "control-center",
     "devops"
   ],
-  "author": "Jon Bogaty <jon@flipsidecrypto.com>",
+  "author": "Jon Bogaty",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -98,5 +121,11 @@
   "homepage": "https://github.com/jbcom/agentic-control#readme",
   "bugs": {
     "url": "https://github.com/jbcom/agentic-control/issues"
+  },
+  "optionalDependencies": {
+    "@ai-sdk/azure": "^2.0.78",
+    "@ai-sdk/google": "^2.0.44",
+    "@ai-sdk/mistral": "^2.0.25",
+    "@ai-sdk/openai": "^2.0.76"
   }
 }

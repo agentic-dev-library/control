@@ -75,6 +75,59 @@ function validateRepository(repository: string): void {
 }
 
 /**
+ * Validates webhook URL to prevent SSRF attacks
+ * Only allows HTTPS URLs to external hosts
+ */
+function validateWebhookUrl(url: string): void {
+  if (!url || typeof url !== "string") {
+    throw new Error("Webhook URL is required and must be a string");
+  }
+  
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Webhook URL is not a valid URL");
+  }
+  
+  // Security: Only allow HTTPS
+  if (parsed.protocol !== "https:") {
+    throw new Error("Webhook URL must use HTTPS protocol");
+  }
+  
+  // Security: Block internal/private IP ranges
+  const hostname = parsed.hostname.toLowerCase();
+  const blockedPatterns = [
+    /^localhost$/i,
+    /^127\./,
+    /^10\./,
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+    /^192\.168\./,
+    /^169\.254\./,
+    /^0\./,
+    /^\[::1\]$/,
+    /^\[fc/i,
+    /^\[fd/i,
+    /^\[fe80:/i,
+    /^metadata\./i,
+    /^internal\./i,
+    /\.local$/i,
+    /\.internal$/i,
+  ];
+  
+  for (const pattern of blockedPatterns) {
+    if (pattern.test(hostname)) {
+      throw new Error("Webhook URL cannot point to internal/private addresses");
+    }
+  }
+  
+  // Security: Block common cloud metadata endpoints
+  if (hostname === "169.254.169.254" || hostname.includes("metadata.google")) {
+    throw new Error("Webhook URL cannot point to cloud metadata services");
+  }
+}
+
+/**
  * Sanitizes error messages to prevent sensitive data leakage
  */
 function sanitizeError(error: unknown): string {
@@ -202,11 +255,28 @@ export class CursorAPI {
 
   /**
    * Launch a new agent
+   * 
+   * API Spec: https://cursor.com/docs/cloud-agent/api/endpoints
    */
   async launchAgent(options: {
-    prompt: { text: string };
-    source: { repository: string; ref?: string };
-    model?: string;
+    prompt: { 
+      text: string;
+      images?: Array<{ data: string; dimension?: { width: number; height: number } }>;
+    };
+    source: { 
+      repository: string; 
+      ref?: string;
+    };
+    target?: {
+      autoCreatePr?: boolean;
+      branchName?: string;
+      openAsCursorGithubApp?: boolean;
+      skipReviewerRequest?: boolean;
+    };
+    webhook?: {
+      url: string;
+      secret?: string;
+    };
   }): Promise<Result<Agent>> {
     validatePromptText(options.prompt.text);
     validateRepository(options.source.repository);
@@ -215,6 +285,11 @@ export class CursorAPI {
       if (typeof options.source.ref !== "string" || options.source.ref.length > 200) {
         throw new Error("Invalid ref: must be a string under 200 characters");
       }
+    }
+    
+    // Security: Validate webhook URL to prevent SSRF
+    if (options.webhook?.url) {
+      validateWebhookUrl(options.webhook.url);
     }
     
     return this.request<Agent>("/agents", "POST", options);
@@ -237,5 +312,16 @@ export class CursorAPI {
     const result = await this.request<{ repositories: Repository[] }>("/repositories");
     if (!result.success) return { success: false, error: result.error };
     return { success: true, data: result.data?.repositories ?? [] };
+  }
+
+  /**
+   * List available models
+   * 
+   * API Spec: https://cursor.com/docs/cloud-agent/api/endpoints#list-models
+   */
+  async listModels(): Promise<Result<string[]>> {
+    const result = await this.request<{ models: string[] }>("/models");
+    if (!result.success) return { success: false, error: result.error };
+    return { success: true, data: result.data?.models ?? [] };
   }
 }
