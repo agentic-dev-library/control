@@ -28,8 +28,8 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
-    # TypeScript/JavaScript documentation (disabled pending TypeDoc config)
-    # "sphinx_js",
+    # TypeScript/JavaScript documentation
+    "sphinx_js",
     # Markdown support
     "myst_parser",
     # Diagrams
