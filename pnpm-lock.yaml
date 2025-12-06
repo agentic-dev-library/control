@@ -35,9 +35,6 @@ importers:
       simple-git:
         specifier: ^3.30.0
         version: 3.30.0
-      typedoc:
-        specifier: ^0.28.15
-        version: 0.28.15(typescript@5.9.3)
       zod:
         specifier: ^4.1.13
         version: 4.1.13
@@ -60,6 +57,9 @@ importers:
       tsx:
         specifier: 4.21.0
         version: 4.21.0
+      typedoc:
+        specifier: ^0.28.0
+        version: 0.28.15(typescript@5.9.3)
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
