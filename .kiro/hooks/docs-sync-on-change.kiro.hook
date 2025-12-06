@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "name": "Documentation Sync",
+  "description": "Monitors all TypeScript and Python source files, as well as configuration files like package.json, pyproject.toml, and YAML configs. When changes are detected, prompts the agent to update relevant documentation in README.md or the docs/ folder to keep documentation in sync with code changes.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.ts",
+      "python/src/**/*.py",
+      "python/pyproject.toml",
+      "package.json",
+      "tsconfig.json",
+      "python/crewbase.yaml",
+      "**/*.yaml",
+      "**/*.yml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Source files have been modified. Please review the changes and update the relevant documentation:\n\n1. Check if README.md needs updates for API changes, new features, or configuration changes\n2. Update docs/ folder content if there are architectural changes, new modules, or updated workflows\n3. Ensure code examples in documentation match the current implementation\n4. Update API documentation in docs/api/python/ or docs/api/typescript/ if public interfaces changed\n5. Update getting-started guides if installation or usage patterns changed\n\nFocus on keeping documentation accurate and helpful for users."
+  }
+}

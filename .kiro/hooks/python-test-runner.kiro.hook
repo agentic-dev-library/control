@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Python Test Runner",
+  "description": "Run Python tests when test files are saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "python/tests/test_*.py"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cd python && uv run pytest \"$FILE\" -v"
+  }
+}

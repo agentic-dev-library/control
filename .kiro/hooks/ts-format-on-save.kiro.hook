@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "TypeScript Format on Save",
+  "description": "Auto-format TypeScript files when saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "pnpm run format \"$FILE\""
+  }
+}

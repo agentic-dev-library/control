@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "TypeScript Quality Check",
+  "description": "Run type checking and linting on TypeScript files in src/ when saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "pnpm run typecheck && pnpm run lint"
+  }
+}

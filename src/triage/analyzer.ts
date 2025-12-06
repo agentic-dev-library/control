@@ -8,28 +8,28 @@
  */
 
 import { generateObject, generateText } from 'ai';
-import { z } from 'zod';
 import { spawnSync } from 'node:child_process';
+import { z } from 'zod';
 import { getConfig, log } from '../core/config.js';
-import { getEnvForPRReview } from '../core/tokens.js';
 import {
     getOrLoadProvider,
     resolveProviderOptions,
-    type ProviderOptions,
     type ModelFactory,
+    type ProviderOptions,
 } from '../core/providers.js';
+import { getEnvForPRReview } from '../core/tokens.js';
 import type {
+    AnalysisResult,
+    CodeReviewResult,
     Conversation,
     ConversationMessage,
-    AnalysisResult,
-    Task,
     Blocker as CoreBlocker,
     TriageResult as CoreTriageResult,
-    CodeReviewResult,
-    ReviewIssue,
     ReviewImprovement,
+    ReviewIssue,
+    Task,
 } from '../core/types.js';
-import type { FeedbackItem, Blocker, TriageResult, PRStatus, CIStatus } from './types.js';
+import type { Blocker, CIStatus, FeedbackItem, PRStatus, TriageResult } from './types.js';
 
 // ============================================
 // Schemas for Structured AI Output
@@ -177,6 +177,8 @@ export class Analyzer {
     private apiKey: string;
     private repo: string | undefined;
     private providerFn: ModelFactory | null = null;
+    private crewTool: any | null = null;
+    private crewToolInitialized = false;
 
     constructor(options: AnalyzerOptions = {}) {
         const resolved = resolveProviderOptions(options);
@@ -184,6 +186,47 @@ export class Analyzer {
         this.model = resolved.model;
         this.apiKey = resolved.apiKey;
         this.repo = options.repo ?? getConfig().defaultRepository;
+    }
+
+    /**
+     * Initialize crew tool lazily
+     */
+    private async initCrewTool(): Promise<void> {
+        if (this.crewToolInitialized) return;
+        this.crewToolInitialized = true;
+
+        try {
+            const { getCrewsConfig } = await import('../core/config.js');
+            const crewsConfig = getCrewsConfig();
+            if (crewsConfig) {
+                const { CrewTool } = await import('../crews/crew-tool.js');
+                this.crewTool = new CrewTool(crewsConfig);
+            }
+        } catch {
+            // Crew tool not available
+            this.crewTool = null;
+        }
+    }
+
+    /**
+     * Delegate a task to a CrewAI crew
+     */
+    async delegateToCrew(
+        packageName: string,
+        crewName: string,
+        input: string
+    ): Promise<any> {
+        await this.initCrewTool();
+
+        if (!this.crewTool) {
+            throw new Error('Crew tool not configured. Add crews section to agentic.config.json');
+        }
+
+        return this.crewTool.invokeCrew({
+            package: packageName,
+            crew: crewName,
+            input,
+        });
     }
 
     private async getModel(): Promise<unknown> {
@@ -854,3 +897,4 @@ Write 2-3 sentences summarizing the current state and what needs to happen next.
 /** @deprecated Use Analyzer instead */
 export { Analyzer as AIAnalyzer };
 export type { AnalyzerOptions as AIAnalyzerOptions };
+

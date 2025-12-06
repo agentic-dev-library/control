@@ -10,6 +10,7 @@
 - **🎯 Intelligent Token Switching** - Automatically selects the correct GitHub token based on organization
 - **🚀 Fleet Management** - Spawn, monitor, and coordinate Cursor Background Agents
 - **🔍 AI-Powered Triage** - Analyze conversations, review code, extract tasks
+- **🤖 CrewAI Integration** - Invoke Python autonomous agent crews as tools (optional)
 - **🤝 Station-to-Station Handoff** - Seamless agent continuity across sessions
 - **🔐 Multi-Org Support** - Manage agents across multiple GitHub organizations
 - **🔌 Pluggable AI Providers** - Choose your preferred AI provider (Anthropic, OpenAI, Google, etc.)
@@ -334,6 +335,77 @@ Configure a consistent identity for all PR review operations:
 export AGENTIC_PR_REVIEW_TOKEN=GITHUB_TOKEN
 ```
 
+### Crew Tool Integration (Optional)
+
+Integrate with Python CrewAI agents to delegate specialized tasks to autonomous crews:
+
+```json
+{
+  "crews": {
+    "pythonExecutable": "uv",
+    "crewAgentsPath": "./python",
+    "defaultTimeout": 300000,
+    "env": {
+      "ANTHROPIC_API_KEY": "ANTHROPIC_API_KEY"
+    }
+  }
+}
+```
+
+**Configuration Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `pythonExecutable` | Path to Python executable | `uv` |
+| `crewAgentsPath` | Path to crew-agents package | Auto-detect |
+| `defaultTimeout` | Timeout in milliseconds | `300000` (5 min) |
+| `env` | Environment variables for crews | `{}` |
+
+**Usage Example:**
+
+```typescript
+import { CrewTool } from 'agentic-control';
+
+const crewTool = new CrewTool();
+
+// Invoke a crew
+const result = await crewTool.invokeCrew({
+  package: 'otterfall',
+  crew: 'game_builder',
+  input: 'Create a QuestComponent with reward tracking',
+});
+
+if (result.success) {
+  console.log('Crew output:', result.output);
+}
+```
+
+**Integration with Fleet:**
+
+```typescript
+import { Fleet, CrewTool } from 'agentic-control';
+
+const fleet = new Fleet();
+const crewTool = new CrewTool();
+
+// Generate spec using crew
+const spec = await crewTool.invokeCrew({
+  package: 'otterfall',
+  crew: 'game_builder',
+  input: 'Create a QuestComponent',
+});
+
+// Spawn agent with crew-generated spec
+if (spec.success) {
+  await fleet.spawn({
+    repository: 'https://github.com/org/repo',
+    task: spec.output,
+  });
+}
+```
+
+> **Note**: Crew integration is optional. TypeScript fleet and triage work independently without Python.
+
 ## Programmatic Usage
 
 ```typescript
@@ -341,6 +413,7 @@ import {
   Fleet, 
   AIAnalyzer, 
   GitHubClient,
+  CrewTool,
   getTokenForRepo,
   setTokenConfig,
   addOrganization,
@@ -384,6 +457,18 @@ const openaiAnalyzer = new AIAnalyzer({
   model: "gpt-4o",
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Crew tool integration (optional)
+const crewTool = new CrewTool({
+  pythonExecutable: "uv",
+  crewAgentsPath: "./python",
+});
+
+const crewResult = await crewTool.invokeCrew({
+  package: "otterfall",
+  crew: "game_builder",
+  input: "Create a QuestComponent",
+});
 ```
 
 ## Token Switching Logic
@@ -421,6 +506,9 @@ agentic-control/
 │   │   └── cursor-api.ts   # Direct Cursor API client
 │   ├── triage/         # AI-powered analysis
 │   │   └── analyzer.ts # Multi-provider AI analysis
+│   ├── crews/          # CrewAI integration (optional)
+│   │   ├── crew-tool.ts # Crew invocation via subprocess
+│   │   └── types.ts    # Crew types and validation
 │   ├── github/         # Token-aware GitHub ops
 │   │   └── client.ts   # Multi-org GitHub client
 │   ├── handoff/        # Agent continuity

@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "TypeScript Test Runner",
+  "description": "Run TypeScript tests when test files are saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "tests/**/*.test.ts"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "pnpm test \"$FILE\""
+  }
+}

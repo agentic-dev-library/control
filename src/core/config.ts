@@ -29,8 +29,8 @@
  */
 
 import { cosmiconfigSync } from 'cosmiconfig';
-import type { TokenConfig } from './types.js';
 import { setTokenConfig } from './tokens.js';
+import type { TokenConfig } from './types.js';
 
 // ============================================
 // Configuration Types
@@ -82,6 +82,17 @@ export interface MCPConfig {
     [key: string]: MCPServerConfig | undefined;
 }
 
+export interface CrewsConfig {
+    /** Path to Python executable (default: 'uv') */
+    pythonExecutable?: string;
+    /** Path to crew-agents package (default: auto-detect from python/ directory) */
+    crewAgentsPath?: string;
+    /** Default timeout for crew execution in milliseconds */
+    defaultTimeout?: number;
+    /** Environment variables to pass to all crew executions */
+    env?: Record<string, string>;
+}
+
 export interface AgenticConfig {
     /** Token configuration for multi-org access */
     tokens?: Partial<TokenConfig>;
@@ -114,6 +125,9 @@ export interface AgenticConfig {
 
     /** MCP server configuration */
     mcp?: MCPConfig;
+
+    /** Crew tool configuration */
+    crews?: CrewsConfig;
 }
 
 // ============================================
@@ -406,6 +420,16 @@ export function getTriageApiKey(providerOverride?: string): string | undefined {
     const provider = providerOverride ?? triageConfig.provider;
     const envVar = triageConfig.apiKeyEnvVar ?? getDefaultApiKeyEnvVar(provider);
     return process.env[envVar];
+}
+
+/**
+ * Get crews configuration
+ */
+export function getCrewsConfig(): CrewsConfig | undefined {
+    if (!configLoaded) {
+        initConfig();
+    }
+    return config.crews;
 }
 
 // ============================================

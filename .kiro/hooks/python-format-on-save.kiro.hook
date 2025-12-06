@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Python Format on Save",
+  "description": "Auto-format Python files when saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "python/src/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cd python && uvx ruff format \"$FILE\""
+  }
+}

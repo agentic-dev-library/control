@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Dual-Language Consistency Check",
+  "description": "Remind to check Python implementation when TypeScript core types change",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/core/types.ts",
+      "src/core/config.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Core types changed in TypeScript. Please check if Python needs updates:\n\n1. python/src/crew_agents/core/types.py (if exists)\n2. Shared configuration patterns\n3. MCP integration interfaces\n4. Ensure type definitions remain compatible between languages"
+  }
+}

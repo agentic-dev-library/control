@@ -1,71 +1,40 @@
 # Agent Instructions for agentic-control
 
-## Overview
-
-Unified AI agent fleet management with TypeScript core and Python CrewAI companion.
-
 ## Before Starting
 
+Check active context for current work:
 ```bash
 cat memory-bank/activeContext.md
 ```
 
-## TypeScript Development
+## Development Commands
+
+See `.kiro/steering/tech.md` for complete build/test/lint commands.
+
+Quick reference:
+- **TypeScript**: `pnpm install`, `pnpm run build`, `pnpm test`
+- **Python**: `cd python && uv sync --extra tests && uv run pytest`
+
+## MCP Servers
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Build
-pnpm run build
-
-# Test
-pnpm run test
-
-# Format with Prettier
-pnpm run format
-
-# Lint
-pnpm run lint
-```
-
-## Python Development
-
-```bash
-cd python
-
-# Install dependencies
-uv sync --extra tests
-
-# Run tests
-uv run pytest tests/ -v
-
-# Lint and format
-uvx ruff check --fix src/ tests/
-uvx ruff format src/ tests/
-```
-
-## MCP Server
-
-TypeScript provides MCP server capabilities for CrewAI Python agents.
-
-```bash
-# Start TypeScript MCP server (for CrewAI)
+# Start TypeScript MCP server
 npx agentic mcp
 
-# Start Python CrewAI MCP server
+# Start Python CrewAI MCP server  
 crew-mcp
 ```
 
-## Commit Messages
+## Commit Conventions
 
-Use conventional commits:
-- `feat(fleet): new fleet feature` → minor
-- `feat(crew): Python crew feature` → minor
-- `fix(triage): bug fix` → patch
+Use conventional commits with module scopes:
+- `feat(fleet): description` → minor version bump
+- `feat(crew): description` → minor version bump
+- `fix(triage): description` → patch version bump
+- `docs: description` → no version bump
 
-## Architecture
+**Scopes**: `fleet`, `crew`, `triage`, `github`, `handoff`, `core`
 
-- `src/` - TypeScript source (fleet, triage, handoff, GitHub)
-- `python/src/crew_agents/` - Python CrewAI agents
-- Both share config patterns and MCP integration
+## Project Structure
+
+See `.kiro/steering/structure.md` and `.kiro/steering/product.md` for architecture details.

@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Full Build Verification",
+  "description": "Run full build and test suite for pre-commit verification",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "echo \"Running full build verification...\" && pnpm run build && pnpm test && cd python && uv run pytest tests/ -v && echo \"✅ All checks passed!\""
+  }
+}

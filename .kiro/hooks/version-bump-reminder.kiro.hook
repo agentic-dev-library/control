@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Version Bump Reminder",
+  "description": "Check if version was updated when package metadata changes",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "package.json",
+      "python/pyproject.toml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Package metadata changed. Please verify:\n\n1. Was the version number updated?\n2. Was CHANGELOG updated?\n3. Do dependencies need updates?\n\nReminder: Use conventional commits for automatic version bumping:\n- feat(scope): description → minor version bump\n- fix(scope): description → patch version bump"
+  }
+}

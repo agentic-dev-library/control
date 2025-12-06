@@ -10,6 +10,7 @@ The agentic-control TypeScript package is organized into several modules:
 
 - **Fleet** - Agent fleet management and orchestration
 - **Triage** - Issue analysis and routing
+- **Crews** - Python CrewAI integration (optional)
 - **GitHub** - GitHub API integration
 - **Handoff** - Agent handoff management
 - **Core** - Shared utilities and configuration
@@ -19,6 +20,7 @@ The agentic-control TypeScript package is organized into several modules:
 
    fleet
    triage
+   crews
    github
    handoff
    core
@@ -37,6 +39,13 @@ Triage Module
 
 The triage module provides issue analysis and routing capabilities.
 See :doc:`triage` for detailed API documentation.
+
+Crews Module
+~~~~~~~~~~~~
+
+The crews module provides optional integration with Python CrewAI agents.
+Enables TypeScript code to invoke specialized autonomous agent crews as tools.
+See :doc:`crews` for detailed API documentation.
 
 GitHub Module
 ~~~~~~~~~~~~~

@@ -20,6 +20,7 @@ Unified AI agent fleet management, triage, and orchestration toolkit for control
    api/typescript/index
    api/typescript/fleet
    api/typescript/triage
+   api/typescript/crews
    api/typescript/github
    api/typescript/handoff
    api/typescript/core

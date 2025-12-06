@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "MCP Server Health Check",
+  "description": "Test MCP server connectivity and health",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "echo \"Testing MCP server...\" && npx agentic mcp & MCP_PID=$! && sleep 2 && curl -X POST http://localhost:3000/health || echo \"⚠️  MCP server not responding\" && kill $MCP_PID 2>/dev/null || true"
+  }
+}

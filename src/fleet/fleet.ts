@@ -12,22 +12,22 @@
  * All configuration is user-provided - no hardcoded values.
  */
 
-import { writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { CursorAPI, type CursorAPIOptions } from './cursor-api.js';
-import { GitHubClient } from '../github/client.js';
-import { extractOrg } from '../core/tokens.js';
 import { log } from '../core/config.js';
+import { extractOrg } from '../core/tokens.js';
 import type {
     Agent,
     AgentStatus,
     Conversation,
+    DiamondConfig,
+    PRComment,
     Repository,
     Result,
     SpawnOptions,
-    DiamondConfig,
-    PRComment,
 } from '../core/types.js';
+import { GitHubClient } from '../github/client.js';
+import { CursorAPI, type CursorAPIOptions } from './cursor-api.js';
 
 // ============================================
 // Types
@@ -66,6 +66,8 @@ export class Fleet {
     private api: CursorAPI | null;
     private archivePath: string;
     private useDirectApi: boolean;
+    private crewTool: any | null = null;
+    private crewToolInitialized = false;
 
     constructor(config: FleetConfig = {}) {
         this.archivePath = config.archivePath ?? './memory-bank/recovery';
@@ -82,6 +84,26 @@ export class Fleet {
             this.api = null;
             this.useDirectApi = false;
             log.debug('CursorAPI not available, some operations will fail');
+        }
+
+        // Defer crew tool initialization
+        this.initCrewTool();
+    }
+
+    private async initCrewTool(): Promise<void> {
+        if (this.crewToolInitialized) return;
+        this.crewToolInitialized = true;
+
+        try {
+            const { getCrewsConfig } = await import('../core/config.js');
+            const crewsConfig = getCrewsConfig();
+            if (crewsConfig) {
+                const { CrewTool } = await import('../crews/crew-tool.js');
+                this.crewTool = new CrewTool(crewsConfig);
+            }
+        } catch {
+            // Crew tool not available
+            this.crewTool = null;
         }
     }
 
@@ -172,6 +194,51 @@ export class Fleet {
             },
             target: options.target,
             webhook: options.webhook,
+        });
+    }
+
+    /**
+     * Spawn an agent with crew-generated specifications
+     */
+    async spawnWithCrewSpec(
+        repository: string,
+        crewPackage: string,
+        crewName: string,
+        crewInput: string,
+        spawnOptions?: Partial<SpawnOptions>
+    ): Promise<Result<Agent>> {
+        await this.initCrewTool();
+
+        if (!this.crewTool) {
+            return {
+                success: false,
+                error: 'Crew tool not configured. Add crews section to agentic.config.json',
+            };
+        }
+
+        log.info(`Generating spec using crew ${crewPackage}.${crewName}`);
+
+        // Generate spec using crew
+        const crewResult = await this.crewTool.invokeCrew({
+            package: crewPackage,
+            crew: crewName,
+            input: crewInput,
+        });
+
+        if (!crewResult.success) {
+            return {
+                success: false,
+                error: `Crew execution failed: ${crewResult.error}`,
+            };
+        }
+
+        log.info('Crew spec generated, spawning agent');
+
+        // Spawn agent with crew-generated spec
+        return this.spawn({
+            repository,
+            task: crewResult.output!,
+            ...spawnOptions,
         });
     }
 

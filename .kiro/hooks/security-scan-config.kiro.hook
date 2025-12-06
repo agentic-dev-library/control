@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Security Scan on Config Changes",
+  "description": "Validate no secrets are hardcoded when config files change",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "agentic.config.json",
+      ".env*",
+      "**/*.config.js",
+      "**/*.config.ts"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "if grep -E \"(api[_-]?key|token|secret|password)\" \"$FILE\" | grep -v \"process.env\" | grep -v \"import.meta.env\"; then echo \"⚠️  Potential secret detected. Ensure using environment variables!\"; exit 1; fi"
+  }
+}

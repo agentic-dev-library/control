@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Steering File Validator",
+  "description": "Validate steering file format when .kiro/steering files are saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      ".kiro/steering/*.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Steering file updated. Please ensure:\n\n1. Content is concise and actionable\n2. No duplication with other steering files\n3. Proper markdown formatting is used\n4. File references use #[[file:<relative_file_name>]] syntax if needed\n5. Front-matter is correct for inclusion type (always/fileMatch/manual)"
+  }
+}

@@ -33,6 +33,10 @@
     "./core": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
+    },
+    "./crews": {
+      "types": "./dist/crews/index.d.ts",
+      "import": "./dist/crews/index.js"
     }
   },
   "files": [
@@ -93,6 +97,7 @@
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "^4.0.14",
     "eslint": "^8.56.0",
+    "fast-check": "^4.3.0",
     "prettier": "^3.2.0",
     "tsx": "4.21.0",
     "typedoc": "^0.28.0",
