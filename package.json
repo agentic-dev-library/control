@@ -30,6 +30,10 @@
       "types": "./dist/handoff/index.d.ts",
       "import": "./dist/handoff/index.js"
     },
+    "./sandbox": {
+      "types": "./dist/sandbox/index.d.ts",
+      "import": "./dist/sandbox/index.js"
+    },
     "./core": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
@@ -54,6 +58,7 @@
   },
   "dependencies": {
     "@ai-sdk/mcp": "^0.0.11",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.60",
     "@inquirer/prompts": "8.0.1",
     "@modelcontextprotocol/sdk": "^1.24.0",
     "@octokit/rest": "^22.0.1",

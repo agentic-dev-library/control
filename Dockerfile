@@ -25,8 +25,8 @@ ARG DISTRO=bookworm
 # -----------------------------------------------------------------------------
 FROM python:${PYTHON_VERSION}-${DISTRO} AS python-base
 
-# Install UV (fast Python package manager)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install UV (fast Python package manager) - pinned version for reproducibility
+COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 
 # Create non-root user
 RUN groupadd --gid 1000 agent && \
@@ -56,8 +56,10 @@ RUN ARCH= && case "${TARGETARCH}" in \
     NODE_FULL_VERSION=$(curl -fsSL "https://nodejs.org/dist/latest-v${NODE_VERSION}.x/SHASUMS256.txt" | head -n1 | awk '{print $2}' | sed 's/node-\(.*\)-linux.*/\1/') && \
     echo "Installing Node.js ${NODE_FULL_VERSION} for ${ARCH}" && \
     curl -fsSLO "https://nodejs.org/dist/${NODE_FULL_VERSION}/node-${NODE_FULL_VERSION}-linux-${ARCH}.tar.xz" && \
+    curl -fsSLO "https://nodejs.org/dist/${NODE_FULL_VERSION}/SHASUMS256.txt" && \
+    sha256sum --check --ignore-missing SHASUMS256.txt && \
     tar -xJf "node-${NODE_FULL_VERSION}-linux-${ARCH}.tar.xz" -C /usr/local --strip-components=1 --no-same-owner && \
-    rm "node-${NODE_FULL_VERSION}-linux-${ARCH}.tar.xz" && \
+    rm "node-${NODE_FULL_VERSION}-linux-${ARCH}.tar.xz" SHASUMS256.txt && \
     ln -sf /usr/local/bin/node /usr/local/bin/nodejs
 
 # Enable corepack for pnpm/yarn
@@ -98,9 +100,6 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     apt-get update && apt-get install -y gh && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Claude Agent SDK globally (for sandbox execution)
-RUN npm install -g @anthropic-ai/claude-agent-sdk
-
 # Set up environment
 ENV NODE_ENV=production
 ENV UV_SYSTEM_PYTHON=1
@@ -129,16 +128,20 @@ RUN cd python && uv sync --frozen --no-dev
 
 # Copy application code
 COPY dist/ ./dist/
+
+# Make CLI executable
+RUN chmod +x /app/dist/cli.js
+
+# Copy Python sources and sandbox scripts (no longer used, dist contains TS build)
 COPY python/src/ ./python/src/
-COPY sandbox/ ./sandbox/
 
 # Copy entrypoint
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Create symlinks for CLI access
-RUN ln -sf /app/node_modules/.bin/agentic /usr/local/bin/agentic && \
-    ln -sf /app/node_modules/.bin/agentic-control /usr/local/bin/agentic-control
+# Create symlinks for CLI access - point directly to built CLI
+RUN ln -sf /app/dist/cli.js /usr/local/bin/agentic && \
+    ln -sf /app/dist/cli.js /usr/local/bin/agentic-control
 
 # Switch to non-root user
 USER agent

@@ -170,7 +170,7 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          docker run --rm ${{ env.IMAGE_NAME }}:test --version || true
+          docker run --rm ${{ env.IMAGE_NAME }}:test --help
           docker run --rm ${{ env.IMAGE_NAME }}:test sh -c "node --version && python --version && gh --version"
 
   # ============================================
