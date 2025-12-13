@@ -64,21 +64,21 @@ export interface SpawnContext {
 
 /**
  * Fleet management for Cursor Background Agents
- * 
+ *
  * Provides high-level operations for managing AI agents across multiple
  * GitHub organizations with automatic token switching and coordination.
- * 
+ *
  * @example
  * ```typescript
  * const fleet = new Fleet();
- * 
+ *
  * // Spawn a new agent
  * const result = await fleet.spawn({
  *   repository: 'https://github.com/owner/repo',
  *   task: 'Fix the authentication bug',
  *   target: { autoCreatePr: true }
  * });
- * 
+ *
  * // Monitor agent status
  * const status = await fleet.status(result.data.id);
  * ```
@@ -90,7 +90,7 @@ export class Fleet {
 
     /**
      * Create a new Fleet instance
-     * 
+     *
      * @param config - Fleet configuration options including API key and timeout
      */
     constructor(config: FleetConfig = {}) {

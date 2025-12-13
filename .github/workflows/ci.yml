@@ -16,7 +16,7 @@ permissions:
   id-token: write
 
 jobs:
-  # Node.js package
+  # Node.js package (TypeScript only - Python moved to agentic-crew)
   build-node:
     name: Build (Node.js)
     runs-on: ubuntu-latest
@@ -64,77 +64,36 @@ jobs:
       - name: Run tests
         run: pnpm run test
 
-  # Python companion package
-  build-python:
-    name: Build (Python)
+  lint-node:
+    name: Lint (Node.js)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.13"
+          node-version: "22"
 
-      - uses: hynek/setup-cached-uv@v2
-
-      - name: Build Python package
-        working-directory: python
-        run: uv build
-
-      - name: Upload Python artifacts
-        uses: actions/upload-artifact@v4
+      - uses: pnpm/action-setup@v4
         with:
-          name: python-dist
-          path: python/dist
-
-  test-python:
-    name: Test (Python)
-    runs-on: ubuntu-latest
-    needs: build-python
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.13"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - uses: hynek/setup-cached-uv@v2
+          version: 9
 
       - name: Install dependencies
-        working-directory: python
-        run: uv sync --extra tests
+        run: pnpm install
 
-      - name: Run tests
-        working-directory: python
-        run: uv run pytest tests -v
-
-  lint-python:
-    name: Lint (Python)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - uses: hynek/setup-cached-uv@v2
-
-      - run: uvx ruff check python/src/ python/tests/
-      - run: uvx ruff format --check python/src/ python/tests/
+      - name: Check formatting
+        run: pnpm run format:check
 
   release-node:
     name: Release (npm)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [build-node, test-node]
+    needs: [build-node, test-node, lint-node]
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
+      issues: write
+      pull-requests: write
       id-token: write
 
     steps:
@@ -154,85 +113,37 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Check if release needed
-        id: check
-        run: |
-          LAST_TAG=$(git describe --tags --match "v*" --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          else
-            CHANGES=$(git diff --name-only "$LAST_TAG"..HEAD -- src/ package.json | wc -l)
-            if [ "$CHANGES" -gt 0 ]; then
-              CURRENT=$(echo "$LAST_TAG" | sed "s/v//")
-              IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-              PATCH=$((PATCH + 1))
-              echo "should_release=true" >> $GITHUB_OUTPUT
-              echo "new_version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
-            else
-              echo "should_release=false" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-      - name: Update version
-        if: steps.check.outputs.should_release == 'true'
-        run: pnpm version ${{ steps.check.outputs.new_version }} --no-git-tag-version
-
       - name: Build
-        if: steps.check.outputs.should_release == 'true'
         run: pnpm run build
 
-      - name: Publish to npm
-        if: steps.check.outputs.should_release == 'true'
-        run: pnpm publish --access public --no-git-checks
+      - name: Semantic Release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create tag and release
-        if: steps.check.outputs.should_release == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json
-          git commit -m "chore(release): v${{ steps.check.outputs.new_version }}"
-          git tag "v${{ steps.check.outputs.new_version }}"
-          git push origin main --tags
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: softprops/action-gh-release@v2
-        if: steps.check.outputs.should_release == 'true'
-        with:
-          tag_name: v${{ steps.check.outputs.new_version }}
-          name: v${{ steps.check.outputs.new_version }}
-          body: |
-            ## agentic-control v${{ steps.check.outputs.new_version }}
-            
-            Install: `npm install agentic-control`
-            Docker: `docker pull jbcom/agentic-control:${{ steps.check.outputs.new_version }}`
-          token: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release
 
   docker-publish:
     name: Publish Docker Image
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [build-node, test-node, build-python, test-python]
+    needs: [build-node, test-node]
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       - name: Extract version
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-      
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -242,68 +153,6 @@ jobs:
           tags: |
             jbcom/agentic-control:latest
             jbcom/agentic-control:${{ steps.version.outputs.version }}
-            jbcom/agentic-control:python3.13-node22
+            jbcom/agentic-control:node22
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  release-python:
-    name: Release (PyPI)
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [build-python, test-python, lint-python]
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - uses: hynek/setup-cached-uv@v2
-
-      - name: Check if Python release needed
-        id: check
-        run: |
-          LAST_TAG=$(git describe --tags --match "python-v*" --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "new_version=0.2.0" >> $GITHUB_OUTPUT
-          else
-            CHANGES=$(git diff --name-only "$LAST_TAG"..HEAD -- python/ | wc -l)
-            if [ "$CHANGES" -gt 0 ]; then
-              CURRENT=$(echo "$LAST_TAG" | sed "s/python-v//")
-              IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-              PATCH=$((PATCH + 1))
-              echo "should_release=true" >> $GITHUB_OUTPUT
-              echo "new_version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
-            else
-              echo "should_release=false" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-      - name: Build Python package
-        if: steps.check.outputs.should_release == 'true'
-        working-directory: python
-        run: uv build
-
-      - name: Publish to PyPI
-        if: steps.check.outputs.should_release == 'true'
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: python/dist/
-          password: ${{ secrets.PYPI_TOKEN }}
-          skip-existing: true
-
-      - name: Create Python tag
-        if: steps.check.outputs.should_release == 'true'
-        run: |
-          git tag "python-v${{ steps.check.outputs.new_version }}"
-          git push origin "python-v${{ steps.check.outputs.new_version }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

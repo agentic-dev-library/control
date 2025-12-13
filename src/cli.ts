@@ -941,7 +941,7 @@ sandboxCmd
         try {
             const { SandboxExecutor } = await import('./sandbox/index.js');
             const executor = new SandboxExecutor();
-            
+
             // Parse environment variables
             const env: Record<string, string> = {};
             if (opts.env) {
@@ -952,9 +952,9 @@ sandboxCmd
                     }
                 }
             }
-            
+
             console.log(`🏃 Running ${opts.runtime} agent in sandbox...`);
-            
+
             const result = await executor.execute({
                 runtime: opts.runtime,
                 workspace: opts.workspace,
@@ -964,7 +964,7 @@ sandboxCmd
                 memory: parseInt(opts.memory),
                 env,
             });
-            
+
             if (opts.json) {
                 output(result, true);
             } else {
@@ -972,12 +972,12 @@ sandboxCmd
                 console.log(`Success: ${result.success ? '✅' : '❌'}`);
                 console.log(`Duration: ${result.duration}ms`);
                 console.log(`Exit Code: ${result.exitCode}`);
-                
+
                 if (result.output) {
                     console.log('\n📄 Output:');
                     console.log(result.output);
                 }
-                
+
                 if (result.error) {
                     console.log('\n❌ Error:');
                     console.log(result.error);
@@ -1003,7 +1003,7 @@ sandboxCmd
         try {
             const { SandboxExecutor } = await import('./sandbox/index.js');
             const executor = new SandboxExecutor();
-            
+
             const options = prompts.map((prompt: string, index: number) => ({
                 runtime: opts.runtime,
                 workspace: opts.workspace,
@@ -1012,11 +1012,11 @@ sandboxCmd
                 timeout: parseInt(opts.timeout) * 1000,
                 memory: parseInt(opts.memory),
             }));
-            
+
             console.log(`🏃 Running ${prompts.length} agents in parallel sandboxes...`);
-            
+
             const results = await executor.executeFleet(options);
-            
+
             if (opts.json) {
                 output(results, true);
             } else {
@@ -1028,9 +1028,11 @@ sandboxCmd
                     console.log(`  Exit Code: ${result.exitCode}`);
                     console.log();
                 });
-                
-                const successful = results.filter(r => r.success).length;
-                console.log(`Summary: ${successful}/${results.length} agents completed successfully`);
+
+                const successful = results.filter((r) => r.success).length;
+                console.log(
+                    `Summary: ${successful}/${results.length} agents completed successfully`
+                );
             }
         } catch (err) {
             console.error('❌ Fleet execution failed:', err instanceof Error ? err.message : err);

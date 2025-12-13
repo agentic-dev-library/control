@@ -332,4 +332,3 @@ export const ResolutionPlanSchema = z.object({
  * Contains ordered steps with dependencies and time estimates.
  */
 export type ResolutionPlan = z.infer<typeof ResolutionPlanSchema>;
-

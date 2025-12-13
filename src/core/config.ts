@@ -399,6 +399,8 @@ export function getDefaultApiKeyEnvVar(provider?: string): string {
             return 'MISTRAL_API_KEY';
         case 'azure':
             return 'AZURE_API_KEY';
+        case 'ollama':
+            return 'OLLAMA_API_KEY';
         case 'anthropic':
         default:
             return 'ANTHROPIC_API_KEY';

@@ -8,6 +8,9 @@ docs/api/python/_autosummary/
 # Dependencies
 node_modules/
 
+# npm lockfile (project uses pnpm)
+package-lock.json
+
 # Test coverage
 coverage/
 

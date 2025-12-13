@@ -43,6 +43,9 @@ jobs:
       - name: Install Node.js dependencies
         run: pnpm install
 
+      - name: Install jsdoc for TypeScript docs
+        run: npm install -g jsdoc
+
       - name: Build TypeScript
         run: pnpm run build
 

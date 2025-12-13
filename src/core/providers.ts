@@ -7,9 +7,11 @@
  * - google (@ai-sdk/google)
  * - mistral (@ai-sdk/mistral)
  * - azure (@ai-sdk/azure)
+ * - ollama (ai-sdk-ollama) - For Ollama Cloud or local Ollama
  *
  * Install the provider you need:
  *   pnpm add @ai-sdk/anthropic
+ *   pnpm add ai-sdk-ollama  # For Ollama support
  */
 
 import { getTriageConfig, getDefaultApiKeyEnvVar } from './config.js';
@@ -21,7 +23,7 @@ import { getTriageConfig, getDefaultApiKeyEnvVar } from './config.js';
 export type ProviderFactory = (config: { apiKey: string }) => unknown;
 export type ModelFactory = (model: string) => unknown;
 
-export type SupportedProvider = 'anthropic' | 'openai' | 'google' | 'mistral' | 'azure';
+export type SupportedProvider = 'anthropic' | 'openai' | 'google' | 'mistral' | 'azure' | 'ollama';
 
 export interface ProviderConfig {
     package: string;
@@ -42,6 +44,7 @@ export const PROVIDER_CONFIG: Record<SupportedProvider, ProviderConfig> = {
     google: { package: '@ai-sdk/google', factory: 'createGoogleGenerativeAI' },
     mistral: { package: '@ai-sdk/mistral', factory: 'createMistral' },
     azure: { package: '@ai-sdk/azure', factory: 'createAzure' },
+    ollama: { package: 'ai-sdk-ollama', factory: 'createOllama' },
 } as const;
 
 /**
@@ -100,6 +103,9 @@ export async function loadProvider(providerName: string, apiKey: string): Promis
             case 'azure':
                 module = await import('@ai-sdk/azure');
                 break;
+            case 'ollama':
+                module = await import('ai-sdk-ollama');
+                break;
             default:
                 // This should never happen due to isValidProvider check above
                 throw new Error(`Provider ${providerName} not implemented`);
@@ -111,7 +117,20 @@ export async function loadProvider(providerName: string, apiKey: string): Promis
             throw new Error(`Factory ${config.factory} not found in ${config.package}`);
         }
 
-        const provider = factory({ apiKey });
+        // Special handling for Ollama - needs baseURL and headers instead of just apiKey
+        let provider: unknown;
+        if (providerName === 'ollama') {
+            const baseURL = process.env.OLLAMA_HOST || 'https://ollama.com';
+            provider = factory({
+                baseURL,
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                },
+            } as unknown as { apiKey: string });
+        } else {
+            provider = factory({ apiKey });
+        }
+
         return (model: string) => (provider as ModelFactory)(model);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
