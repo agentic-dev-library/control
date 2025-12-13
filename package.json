@@ -142,11 +142,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jbcom/agentic-control.git"
+    "url": "https://github.com/jbdevprimary/agentic-control.git"
   },
-  "homepage": "https://github.com/jbcom/agentic-control#readme",
+  "homepage": "https://github.com/jbdevprimary/agentic-control#readme",
   "bugs": {
-    "url": "https://github.com/jbcom/agentic-control/issues"
+    "url": "https://github.com/jbdevprimary/agentic-control/issues"
   },
   "optionalDependencies": {
     "@ai-sdk/azure": "^2.0.78",

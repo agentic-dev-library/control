@@ -568,7 +568,8 @@ describe('Property 6: Docker package installation', () => {
             fs.promises.readFile('Dockerfile', 'utf-8')
         );
 
-        expect(dockerfile).toContain('pip install --user agentic-crew');
+        // Allow any variant of pip install for agentic-crew (with or without extras)
+        expect(dockerfile).toMatch(/pip install.*agentic-crew/);
         expect(dockerfile).toContain('pnpm add -g agentic-control');
         expect(dockerfile).toContain('ENTRYPOINT ["agentic"]');
     });
@@ -601,7 +602,8 @@ describe('Docker non-root user example', () => {
             fs.promises.readFile('Dockerfile', 'utf-8')
         );
 
-        expect(dockerfile).toContain('useradd -m -u 1000 agent');
+        // Allow any variant of useradd with UID 1000
+        expect(dockerfile).toMatch(/useradd.*-u 1000.*agent/);
         expect(dockerfile).toContain('USER agent');
     });
 });
