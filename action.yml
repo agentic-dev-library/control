@@ -1,0 +1,84 @@
+name: 'Agentic Control'
+description: 'AI agent fleet management, sandboxed execution, and orchestration toolkit'
+author: 'Jon Bogaty'
+branding:
+  icon: 'cpu'
+  color: 'blue'
+
+inputs:
+  command:
+    description: 'Command to run (fleet, sandbox, orchestrate, status)'
+    required: true
+  args:
+    description: 'Additional arguments for the command'
+    required: false
+  config:
+    description: 'Path to config file'
+    required: false
+  github_token:
+    description: 'GitHub token for API access'
+    required: false
+  version:
+    description: 'agentic-control version to use'
+    required: false
+    default: 'latest'
+
+outputs:
+  result:
+    description: 'Command execution result'
+    value: ${{ steps.run.outputs.result }}
+  status:
+    description: 'Execution status'
+    value: ${{ steps.run.outputs.status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install agentic-control
+      shell: bash
+      run: npm install -g agentic-control@${{ inputs.version }}
+
+    - name: Run command
+      id: run
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        # Build command
+        CMD="agentic-control ${{ inputs.command }}"
+
+        if [ -n "${{ inputs.args }}" ]; then
+          CMD="$CMD ${{ inputs.args }}"
+        fi
+
+        if [ -n "${{ inputs.config }}" ]; then
+          CMD="$CMD --config ${{ inputs.config }}"
+        fi
+
+        echo "Running: $CMD"
+
+        # Run and capture output
+        set +e
+        OUTPUT=$($CMD 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        echo "$OUTPUT"
+
+        # Set outputs
+        echo "result<<EOF" >> $GITHUB_OUTPUT
+        echo "$OUTPUT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+        fi
