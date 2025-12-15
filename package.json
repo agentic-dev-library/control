@@ -61,7 +61,7 @@
     "@inquirer/prompts": "8.0.1",
     "@modelcontextprotocol/sdk": "^1.24.0",
     "@octokit/rest": "^22.0.1",
-    "ai": "^5.0.106",
+    "ai": "^5.0.113",
     "commander": "^14.0.2",
     "cosmiconfig": "9.0.0",
     "env-var": "^7.5.0",
@@ -74,7 +74,7 @@
     "@ai-sdk/google": "^2.0.44",
     "@ai-sdk/mistral": "^2.0.25",
     "@ai-sdk/openai": "^2.0.76",
-    "ai-sdk-ollama": "^1.1.0"
+    "ai-sdk-ollama": "^2.0.0"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/anthropic": {
@@ -104,7 +104,6 @@
     "@typescript-eslint/eslint-plugin": "^8.49.0",
     "@typescript-eslint/parser": "^8.49.0",
     "@vitest/coverage-v8": "^4.0.14",
-    "ai-sdk-ollama": "^1.1.0",
     "eslint": "^8.56.0",
     "fast-check": "^4.4.0",
     "prettier": "^3.2.0",
@@ -153,6 +152,6 @@
     "@ai-sdk/google": "^2.0.44",
     "@ai-sdk/mistral": "^2.0.25",
     "@ai-sdk/openai": "^2.0.76",
-    "ai-sdk-ollama": "^1.1.0"
+    "ai-sdk-ollama": "^2.0.0"
   }
 }

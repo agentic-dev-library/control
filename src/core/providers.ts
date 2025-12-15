@@ -7,11 +7,11 @@
  * - google (@ai-sdk/google)
  * - mistral (@ai-sdk/mistral)
  * - azure (@ai-sdk/azure)
- * - ollama (ai-sdk-ollama) - For Ollama Cloud or local Ollama
+ * - ollama (ai-sdk-ollama) - for Ollama Cloud and local Ollama
  *
  * Install the provider you need:
  *   pnpm add @ai-sdk/anthropic
- *   pnpm add ai-sdk-ollama  # For Ollama support
+ *   pnpm add ai-sdk-ollama  # for Ollama support
  */
 
 import { getTriageConfig, getDefaultApiKeyEnvVar } from './config.js';
@@ -45,6 +45,18 @@ export const PROVIDER_CONFIG: Record<SupportedProvider, ProviderConfig> = {
     mistral: { package: '@ai-sdk/mistral', factory: 'createMistral' },
     azure: { package: '@ai-sdk/azure', factory: 'createAzure' },
     ollama: { package: 'ai-sdk-ollama', factory: 'createOllama' },
+} as const;
+
+/**
+ * Ollama-specific configuration
+ */
+export const OLLAMA_CONFIG = {
+    /** Default model for Ollama Cloud (qwen3-coder has excellent tool support) */
+    defaultModel: 'qwen3-coder:480b',
+    /** Ollama Cloud API URL (SDK appends /api paths automatically) */
+    cloudHost: 'https://ollama.com',
+    /** Local Ollama API URL (SDK appends /api paths automatically) */
+    localHost: 'http://localhost:11434',
 } as const;
 
 /**
@@ -117,20 +129,28 @@ export async function loadProvider(providerName: string, apiKey: string): Promis
             throw new Error(`Factory ${config.factory} not found in ${config.package}`);
         }
 
-        // Special handling for Ollama - needs baseURL and headers instead of just apiKey
-        let provider: unknown;
+        // Ollama provider has different config structure
         if (providerName === 'ollama') {
-            const baseURL = process.env.OLLAMA_HOST || 'https://ollama.com';
-            provider = factory({
-                baseURL,
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                },
-            } as unknown as { apiKey: string });
-        } else {
-            provider = factory({ apiKey });
+            // Determine host URL based on API key presence
+            const host =
+                process.env.OLLAMA_HOST ||
+                (apiKey ? OLLAMA_CONFIG.cloudHost : OLLAMA_CONFIG.localHost);
+            // Normalize URL to remove any trailing slashes or /api path (SDK appends /api automatically)
+            const normalizedHost = host.replace(/\/api\/?$/, '').replace(/\/$/, '');
+
+            type OllamaProviderFactory = (config: {
+                baseURL: string;
+                headers?: { Authorization: string };
+            }) => unknown;
+
+            const provider = (factory as unknown as OllamaProviderFactory)({
+                baseURL: normalizedHost,
+                headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+            });
+            return (model: string) => (provider as ModelFactory)(model);
         }
 
+        const provider = factory({ apiKey });
         return (model: string) => (provider as ModelFactory)(model);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
@@ -186,7 +206,7 @@ export function clearProviderCache(): void {
 // ============================================
 
 export interface ProviderOptions {
-    /** AI provider: anthropic, openai, google, mistral, azure */
+    /** AI provider: anthropic, openai, google, mistral, azure, ollama */
     provider?: string;
     /** Model to use */
     model?: string;
