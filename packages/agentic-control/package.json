@@ -57,16 +57,16 @@
     "prepublishOnly": "npm run build && npm run test"
   },
   "dependencies": {
-    "@ai-sdk/mcp": "^0.0.11",
-    "@inquirer/prompts": "8.0.1",
-    "@modelcontextprotocol/sdk": "^1.24.0",
+    "@ai-sdk/mcp": "^0.0.12",
+    "@inquirer/prompts": "8.1.0",
+    "@modelcontextprotocol/sdk": "^1.25.0",
     "@octokit/rest": "^22.0.1",
     "ai": "^5.0.113",
     "commander": "^14.0.2",
     "cosmiconfig": "9.0.0",
     "env-var": "^7.5.0",
     "simple-git": "^3.30.0",
-    "zod": "^4.1.13"
+    "zod": "^4.2.1"
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "^2.0.53",
