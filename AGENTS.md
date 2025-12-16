@@ -4,6 +4,27 @@
 
 Unified AI agent fleet management with TypeScript core and Python CrewAI companion.
 
+**agentic-control** consumes triage primitives from **[agentic-triage](https://github.com/jbdevprimary/agentic-triage)**.
+
+## Using agentic-triage Tools
+
+```typescript
+import { getTriageTools, getIssueTools, getReviewTools } from 'agentic-triage';
+import { generateText } from 'ai';
+
+// In agent configurations
+const triageAgent = {
+  tools: getTriageTools(),
+  systemPrompt: 'You are a triage specialist...',
+};
+
+// Or selective import
+const issueAgent = {
+  tools: getIssueTools(),
+  systemPrompt: 'You manage issues...',
+};
+```
+
 ## Before Starting
 
 ```bash
@@ -57,6 +78,38 @@ npx agentic mcp
 crew-mcp
 ```
 
+## Tool Architecture
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                    agentic-control                          │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                   AI Agent Fleet                     │   │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────┐ │   │
+│  │  │ Triage  │  │ Develop │  │ Review  │  │ Deploy │ │   │
+│  │  │ Agent   │  │ Agent   │  │ Agent   │  │ Agent  │ │   │
+│  │  └────┬────┘  └────┬────┘  └────┬────┘  └────────┘ │   │
+│  │       │            │            │                   │   │
+│  │       └────────────┴────────────┘                   │   │
+│  │                    │                                 │   │
+│  │                    ▼                                 │   │
+│  │       ┌────────────────────────────┐                │   │
+│  │       │ getTriageTools() from      │                │   │
+│  │       │ @strata/triage             │                │   │
+│  │       └────────────────────────────┘                │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ▲                                 │
+│                           │ npm dependency                  │
+└───────────────────────────┼─────────────────────────────────┘
+                            │
+                            ▼
+            ┌───────────────────────────────┐
+            │        agentic-triage         │
+            │  (Triage tool primitives)     │
+            └───────────────────────────────┘
+```
+
 ## Commit Messages
 
 Use conventional commits:
@@ -69,3 +122,8 @@ Use conventional commits:
 - `src/` - TypeScript source (fleet, triage, handoff, GitHub)
 - `python/src/crew_agents/` - Python CrewAI agents
 - Both share config patterns and MCP integration
+
+## Related
+
+- [agentic-triage](https://github.com/jbdevprimary/agentic-triage) - Triage tool primitives (consumed by this project)
+- [agentic-crew](https://github.com/jbdevprimary/agentic-crew) - Multi-agent orchestration

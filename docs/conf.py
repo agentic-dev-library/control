@@ -5,7 +5,10 @@ import os
 import sys
 
 # Add source to path for autodoc
-sys.path.insert(0, os.path.abspath("../src"))
+# TypeScript source is in packages/agentic-control/src
+sys.path.insert(0, os.path.abspath("../packages/agentic-control/src"))
+# Python source is in python/src
+sys.path.insert(0, os.path.abspath("../python/src"))
 
 # -- Project information -----------------------------------------------------
 project = "agentic-control"
@@ -106,5 +109,5 @@ myst_enable_extensions = [
 myst_heading_anchors = 3
 
 # TypeScript API documentation
-js_source_path = '../src'
+js_source_path = '../packages/agentic-control/src'
 jsdoc_config_path = '../jsdoc.json'

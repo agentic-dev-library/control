@@ -39,6 +39,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install sphinx sphinx-rtd-theme sphinx-js myst-parser sphinxcontrib-mermaid sphinx-autodoc-typehints
+          pip install -e python/src 2>/dev/null || echo "Python package not installable, skipping"
 
       - name: Install Node.js dependencies
         run: pnpm install

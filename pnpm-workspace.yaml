@@ -1,0 +1,5 @@
+# PNPM Workspace - manages TypeScript packages
+# - packages/agentic-control = main CLI and runtime package (npm)
+# - packages/vitest-agentic-control = vitest plugin for E2E testing (npm)
+packages:
+  - 'packages/*'

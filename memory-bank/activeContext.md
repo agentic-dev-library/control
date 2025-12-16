@@ -1,72 +1,97 @@
 # Active Context
 
-## agentic-control v1.1.0 - PRODUCTION READY ✅
+## agentic-control v1.1.0 - PNPM MONOREPO ✅
 
 Unified AI agent fleet management, triage, and orchestration toolkit.
 
-### Production Release Status
-- **✅ All 59 tests passing** (27 core + 32 production release)
-- **✅ Security measures implemented** (token sanitization, safe subprocess execution)
-- **✅ Configuration validation** (Zod schemas, clear error messages)
-- **✅ TypeScript strict mode** (complete type safety, JSDoc documentation)
-- **✅ Docker multi-architecture** (linux/amd64, linux/arm64)
-- **✅ CI/CD workflows** (npm, PyPI, Docker Hub publishing)
-- **✅ Comprehensive documentation** (installation, quickstart, examples)
-- **✅ Example configurations** (basic, advanced, integration patterns)
+### Monorepo Structure (NEW)
 
-### Architecture
-- **TypeScript (main)**: CLI, fleet management, triage, GitHub integration, sandbox execution
-- **Python (companion)**: CrewAI agents and flows
+The project has been converted to a pnpm workspace monorepo, following the pattern from `agentic-crew`:
 
-### TypeScript Package
-- **Registry**: npm (agentic-control)
-- **Runtime**: Node.js 20+
-- **Entry**: `npx agentic-control` or `npx agentic`
-- **Docker**: `docker pull jbcom/agentic-control:latest`
+```
+/workspace/
+├── pnpm-workspace.yaml          # Workspace configuration
+├── packages/
+│   ├── agentic-control/         # Main CLI and runtime package (npm)
+│   │   ├── src/                 # TypeScript source
+│   │   ├── tests/               # Tests using vitest-agentic-control
+│   │   └── package.json
+│   └── vitest-agentic-control/  # Vitest plugin for E2E testing (npm)
+│       ├── src/                 # Plugin source
+│       │   ├── index.ts         # Main exports
+│       │   ├── mocking.ts       # AgenticMocker class
+│       │   ├── mcp.ts           # MCP server mocking
+│       │   ├── providers.ts     # AI provider mocking
+│       │   ├── sandbox.ts       # Container/sandbox mocking
+│       │   └── fixtures.ts      # Test configurations
+│       ├── tests/               # Plugin tests
+│       └── package.json
+└── python/                      # Python CrewAI companion (PyPI)
+```
 
-### Python Package
-- **Registry**: PyPI (agentic-control-crews)
-- **Runtime**: Python 3.11+
-- **Entry**: `crew-mcp` for MCP server
+### vitest-agentic-control Plugin
 
-### Key Features Implemented
+The new testing plugin provides:
+
+- **MCP Mocking**: Mock MCP servers, tools, and resources
+- **Provider Mocking**: Mock AI providers (Anthropic, OpenAI, Google, Mistral, Azure, Ollama)
+- **Sandbox Mocking**: Mock Docker container execution
+- **Test Fixtures**: Pre-configured fixtures for tokens, fleet, triage, sandbox
+- **Environment Helpers**: Easy setup/cleanup of test environment variables
+
+**Dogfooding**: The main `agentic-control` package uses `vitest-agentic-control` for its own tests, demonstrating the plugin's capabilities.
+
+### Test Status
+
+- **82 tests passing** (23 vitest-agentic-control + 59 agentic-control)
+- Workspace-level `pnpm run build` and `pnpm run test` commands work
+- Both packages build and test independently
+
+### Development Commands
+
+```bash
+# Install dependencies (workspace)
+pnpm install
+
+# Build all packages
+pnpm run build
+
+# Test all packages
+pnpm run test
+
+# Build specific package
+pnpm -F agentic-control build
+pnpm -F vitest-agentic-control build
+
+# Test specific package
+pnpm -F agentic-control test
+pnpm -F vitest-agentic-control test
+
+# Format
+pnpm run format
+```
+
+### Key Features
+
 - **Multi-org token management** with automatic switching
-- **AI-powered triage** (Anthropic, OpenAI, Google, Mistral, Azure)
+- **AI-powered triage** (Anthropic, OpenAI, Google, Mistral, Azure, Ollama)
 - **Sandbox execution** with Docker isolation
 - **Fleet coordination** and agent handoff protocols
-- **Security-first design** (no hardcoded values, token sanitization)
-- **Property-based testing** (25 properties validated)
+- **MCP server mocking** for E2E testing
+- **Provider mocking** for unit testing without API calls
 
-### Development
+### Architecture
 
-#### TypeScript
-```bash
-pnpm install
-pnpm run build      # ✅ Clean build
-pnpm run test       # ✅ 59 tests passing
-pnpm run format     # ✅ Prettier formatting
-```
+- **packages/agentic-control**: Main TypeScript package
+  - CLI, fleet management, triage, GitHub integration, sandbox execution
+  - Exports: Fleet, AIAnalyzer, SandboxExecutor, GitHubClient, HandoffManager
 
-#### Python
-```bash
-cd python
-uv sync --extra tests
-uv run pytest tests/ -v
-uvx ruff check src/ tests/
-```
+- **packages/vitest-agentic-control**: Testing plugin
+  - AgenticMocker, McpMocker, ProviderMocker, SandboxMocker
+  - Test fixtures and environment helpers
 
-### Production Deployment
-```bash
-# Install from npm
-npm install -g agentic-control
-
-# Or use Docker
-docker run -it jbcom/agentic-control:latest agentic --help
-
-# Initialize configuration
-agentic init
-```
+- **python/**: Python CrewAI agents (companion package)
 
 ---
-*Production release completed: 2025-12-09*
-*Ready for v1.0 public release*
+*Monorepo conversion completed: 2025-12-15*
+*Similar pattern to agentic-crew uv workspace*

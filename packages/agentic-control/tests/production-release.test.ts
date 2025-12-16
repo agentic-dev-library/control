@@ -9,8 +9,14 @@
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
-import { extname, join } from 'path';
+import { extname, join, resolve } from 'path';
 import { describe, expect, it } from 'vitest';
+import { fileURLToPath } from 'url';
+
+// Resolve paths relative to the workspace root (monorepo root)
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const WORKSPACE_ROOT = resolve(__dirname, '../../..');
+const PACKAGE_ROOT = resolve(__dirname, '..');
 
 describe('Production Release Properties', () => {
     describe('Property 1: Build output purity', () => {
@@ -374,9 +380,9 @@ describe('Production Release Properties', () => {
          */
         it('should have example configuration files in docs directory', async () => {
             const exampleFiles = [
-                'docs/examples/basic-usage.md',
-                'docs/examples/advanced-patterns.md',
-                'docs/examples/integration.md',
+                join(WORKSPACE_ROOT, 'docs/examples/basic-usage.md'),
+                join(WORKSPACE_ROOT, 'docs/examples/advanced-patterns.md'),
+                join(WORKSPACE_ROOT, 'docs/examples/integration.md'),
             ];
 
             for (const file of exampleFiles) {
@@ -462,7 +468,7 @@ describe('Production Release Properties', () => {
         it('should have JSDoc comments for main public classes', async () => {
             // Check main exports have JSDoc
             const mainIndexContent = await import('fs').then((fs) =>
-                fs.promises.readFile('src/index.ts', 'utf-8')
+                fs.promises.readFile(join(PACKAGE_ROOT, 'src/index.ts'), 'utf-8')
             );
 
             expect(mainIndexContent).toContain('/**');
@@ -470,7 +476,7 @@ describe('Production Release Properties', () => {
 
             // Check Fleet class has JSDoc
             const fleetContent = await import('fs').then((fs) =>
-                fs.promises.readFile('src/fleet/fleet.ts', 'utf-8')
+                fs.promises.readFile(join(PACKAGE_ROOT, 'src/fleet/fleet.ts'), 'utf-8')
             );
 
             expect(fleetContent).toContain('/**');
@@ -547,7 +553,7 @@ describe('Property 5: Docker runtime versions', () => {
         // This test would require Docker to be available
         // For now, we'll verify the Dockerfile specifies the correct versions
         const dockerfile = await import('fs').then((fs) =>
-            fs.promises.readFile('Dockerfile', 'utf-8')
+            fs.promises.readFile(join(WORKSPACE_ROOT, 'Dockerfile'), 'utf-8')
         );
 
         expect(dockerfile).toContain('FROM node:22-slim');
@@ -565,13 +571,16 @@ describe('Property 6: Docker package installation', () => {
      */
     it('should install both packages in Docker image', async () => {
         const dockerfile = await import('fs').then((fs) =>
-            fs.promises.readFile('Dockerfile', 'utf-8')
+            fs.promises.readFile(join(WORKSPACE_ROOT, 'Dockerfile'), 'utf-8')
         );
 
         // Allow any variant of pip install for agentic-crew (with or without extras)
         expect(dockerfile).toMatch(/pip install.*agentic-crew/);
-        expect(dockerfile).toContain('pnpm add -g agentic-control');
-        expect(dockerfile).toContain('ENTRYPOINT ["agentic"]');
+        // agentic-control is built from source (monorepo packages)
+        expect(dockerfile).toContain('pnpm run build');
+        // Entry point uses the built CLI
+        expect(dockerfile).toContain('ENTRYPOINT');
+        expect(dockerfile).toMatch(/cli\.js/);
     });
 });
 
@@ -585,7 +594,7 @@ describe('Property 7: Multi-architecture support', () => {
      */
     it('should configure multi-architecture builds', async () => {
         const ciWorkflow = await import('fs').then((fs) =>
-            fs.promises.readFile('.github/workflows/ci.yml', 'utf-8')
+            fs.promises.readFile(join(WORKSPACE_ROOT, '.github/workflows/ci.yml'), 'utf-8')
         );
 
         expect(ciWorkflow).toContain('platforms: linux/amd64,linux/arm64');
@@ -599,7 +608,7 @@ describe('Docker non-root user example', () => {
      */
     it('should use non-root user with UID 1000', async () => {
         const dockerfile = await import('fs').then((fs) =>
-            fs.promises.readFile('Dockerfile', 'utf-8')
+            fs.promises.readFile(join(WORKSPACE_ROOT, 'Dockerfile'), 'utf-8')
         );
 
         // Allow any variant of useradd with UID 1000
@@ -790,7 +799,7 @@ describe('Documentation files example tests', () => {
      * Verify required documentation files exist and contain expected content
      */
     it('should have installation guide with required sections', async () => {
-        const installationPath = 'docs/getting-started/installation.md';
+        const installationPath = join(WORKSPACE_ROOT, 'docs/getting-started/installation.md');
         expect(existsSync(installationPath)).toBe(true);
 
         const content = await import('fs').then((fs) =>
@@ -806,7 +815,7 @@ describe('Documentation files example tests', () => {
     });
 
     it('should have quickstart tutorial with code examples', async () => {
-        const quickstartPath = 'docs/getting-started/quickstart.md';
+        const quickstartPath = join(WORKSPACE_ROOT, 'docs/getting-started/quickstart.md');
         expect(existsSync(quickstartPath)).toBe(true);
 
         const content = await import('fs').then((fs) =>
@@ -824,7 +833,7 @@ describe('Documentation files example tests', () => {
     });
 
     it('should have architecture documentation', async () => {
-        const architecturePath = 'docs/development/architecture.md';
+        const architecturePath = join(WORKSPACE_ROOT, 'docs/development/architecture.md');
         expect(existsSync(architecturePath)).toBe(true);
     });
 });

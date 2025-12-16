@@ -658,32 +658,6 @@ pnpm test
 pnpm run dev
 ```
 
-## Related Projects
-
-### agentic-triage (Triage Primitives)
-
-**agentic-control** consumes triage tools from **[agentic-triage](https://github.com/jbdevprimary/agentic-triage)**:
-
-```typescript
-import { getTriageTools } from 'agentic-triage';
-import { generateText } from 'ai';
-
-// Use in your agent configurations
-const result = await generateText({
-  model: yourModel,
-  tools: {
-    ...getTriageTools(),
-    ...yourOtherTools,
-  },
-  prompt: 'Triage open issues...',
-});
-```
-
-agentic-triage provides:
-- **Vercel AI SDK Tools** - Portable triage tools for any AI agent
-- **MCP Server** - Model Context Protocol server for Claude/Cursor
-- **Multi-Provider Support** - GitHub, Beads, Jira, Linear
-
 ## Contributing
 
 1. Fork the repository

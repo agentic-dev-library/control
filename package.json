@@ -1,103 +1,22 @@
 {
-  "name": "agentic-control",
+  "name": "agentic-control-monorepo",
   "version": "1.1.0",
-  "description": "Unified AI agent fleet management, triage, and orchestration toolkit for control centers",
+  "private": true,
+  "description": "Unified AI agent fleet management, triage, and orchestration toolkit - Monorepo",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "bin": {
-    "agentic": "./dist/cli.js",
-    "agentic-control": "./dist/cli.js"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./fleet": {
-      "types": "./dist/fleet/index.d.ts",
-      "import": "./dist/fleet/index.js"
-    },
-    "./triage": {
-      "types": "./dist/triage/index.d.ts",
-      "import": "./dist/triage/index.js"
-    },
-    "./github": {
-      "types": "./dist/github/index.d.ts",
-      "import": "./dist/github/index.js"
-    },
-    "./handoff": {
-      "types": "./dist/handoff/index.d.ts",
-      "import": "./dist/handoff/index.js"
-    },
-    "./core": {
-      "types": "./dist/core/index.d.ts",
-      "import": "./dist/core/index.js"
-    },
-    "./sandbox": {
-      "types": "./dist/sandbox/index.d.ts",
-      "import": "./dist/sandbox/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
-    "agentic": "tsx src/cli.ts",
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "lint": "echo 'Linting skipped - using TypeScript for type checking'",
-    "format": "prettier --write src/ tests/",
-    "format:check": "prettier --check src/ tests/",
-    "test": "vitest",
-    "test:coverage": "vitest --coverage",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run test"
-  },
-  "dependencies": {
-    "@ai-sdk/mcp": "^0.0.11",
-    "@inquirer/prompts": "8.0.1",
-    "@modelcontextprotocol/sdk": "^1.24.0",
-    "@octokit/rest": "^22.0.1",
-    "ai": "^5.0.113",
-    "commander": "^14.0.2",
-    "cosmiconfig": "9.0.0",
-    "env-var": "^7.5.0",
-    "simple-git": "^3.30.0",
-    "zod": "^4.1.13"
-  },
-  "peerDependencies": {
-    "@ai-sdk/anthropic": "^2.0.53",
-    "@ai-sdk/azure": "^2.0.78",
-    "@ai-sdk/google": "^2.0.44",
-    "@ai-sdk/mistral": "^2.0.25",
-    "@ai-sdk/openai": "^2.0.76",
-    "ai-sdk-ollama": "^2.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@ai-sdk/anthropic": {
-      "optional": true
-    },
-    "@ai-sdk/openai": {
-      "optional": true
-    },
-    "@ai-sdk/google": {
-      "optional": true
-    },
-    "@ai-sdk/mistral": {
-      "optional": true
-    },
-    "@ai-sdk/azure": {
-      "optional": true
-    },
-    "ai-sdk-ollama": {
-      "optional": true
-    }
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "format": "prettier --write \"packages/*/src/**/*.ts\" \"packages/*/tests/**/*.ts\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.ts\" \"packages/*/tests/**/*.ts\"",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r exec rm -rf dist && rm -rf node_modules",
+    "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "^2.0.53",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@types/node": "^24.10.1",
@@ -114,7 +33,8 @@
     "vitest": "^4.0.14"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
   },
   "keywords": [
     "ai",
@@ -135,7 +55,7 @@
     "typescript",
     "cli",
     "mcp",
-    "property-based-testing"
+    "monorepo"
   ],
   "author": "Jon Bogaty",
   "license": "MIT",
@@ -146,12 +66,5 @@
   "homepage": "https://github.com/jbdevprimary/agentic-control#readme",
   "bugs": {
     "url": "https://github.com/jbdevprimary/agentic-control/issues"
-  },
-  "optionalDependencies": {
-    "@ai-sdk/azure": "^2.0.78",
-    "@ai-sdk/google": "^2.0.44",
-    "@ai-sdk/mistral": "^2.0.25",
-    "@ai-sdk/openai": "^2.0.76",
-    "ai-sdk-ollama": "^2.0.0"
   }
 }

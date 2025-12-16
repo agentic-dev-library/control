@@ -1,0 +1,81 @@
+{
+  "name": "vitest-agentic-control",
+  "version": "1.0.0",
+  "description": "Vitest plugin with fixtures and utilities for agentic-control E2E testing",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./mocking": {
+      "types": "./dist/mocking.d.ts",
+      "import": "./dist/mocking.js"
+    },
+    "./fixtures": {
+      "types": "./dist/fixtures.d.ts",
+      "import": "./dist/fixtures.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.js"
+    },
+    "./providers": {
+      "types": "./dist/providers.d.ts",
+      "import": "./dist/providers.js"
+    },
+    "./sandbox": {
+      "types": "./dist/sandbox.d.ts",
+      "import": "./dist/sandbox.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "vitest": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "prettier": "^3.2.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.14"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "vitest",
+    "testing",
+    "fixtures",
+    "agentic-control",
+    "e2e",
+    "mcp",
+    "ai-agents",
+    "mocking"
+  ],
+  "author": "Jon Bogaty",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jbdevprimary/agentic-control.git",
+    "directory": "packages/vitest-agentic-control"
+  },
+  "homepage": "https://github.com/jbdevprimary/agentic-control/tree/main/packages/vitest-agentic-control",
+  "bugs": {
+    "url": "https://github.com/jbdevprimary/agentic-control/issues"
+  }
+}

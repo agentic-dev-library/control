@@ -57,26 +57,43 @@ WORKDIR /home/agent
 RUN pip install --user --no-cache-dir "agentic-crew[crewai]"
 
 # =============================================================================
-# Install agentic-control (TypeScript control plane)
+# Install agentic-control (TypeScript control plane) - built from source
 # =============================================================================
 
 # Setup pnpm for global installs (required for pnpm v9+)
 # Modern pnpm versions do not create a global bin directory by default.
-# This setup ensures cross-platform compatibility and is critical for:
+# We set PNPM_HOME and create the directory manually since `pnpm setup`
+# requires interactive shell configuration which doesn't work in Docker.
+# This ensures cross-platform compatibility and is critical for:
 # - GitHub Actions Marketplace workflows
 # - Multi-architecture Docker builds (linux/amd64, linux/arm64)
 # - Local Docker image execution with global CLI access
-# Note: pnpm setup uses $HOME/.local/share/pnpm by default on Linux
-# For the 'agent' user (HOME=/home/agent), this resolves to /home/agent/.local/share/pnpm
-RUN pnpm setup && echo "pnpm setup completed successfully"
 ENV PNPM_HOME="/home/agent/.local/share/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+RUN mkdir -p "$PNPM_HOME" && echo "pnpm directory created successfully"
 
-# Install agentic-control globally
-RUN pnpm add -g agentic-control
+# Copy package files for dependency installation
+COPY --chown=agent:agent package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY --chown=agent:agent packages/agentic-control/package.json ./packages/agentic-control/
+COPY --chown=agent:agent packages/vitest-agentic-control/package.json ./packages/vitest-agentic-control/
+
+# Install all dependencies (including devDependencies for AI SDK providers)
+# Note: devDependencies include @ai-sdk/anthropic which is needed at runtime
+RUN pnpm install --frozen-lockfile
+
+# Copy source code and build
+COPY --chown=agent:agent packages/ ./packages/
+
+# Build the packages
+RUN pnpm run build
+
+# Create global symlinks for CLI commands
+RUN ln -s /home/agent/packages/agentic-control/dist/cli.js "$PNPM_HOME/agentic" && \
+    ln -s /home/agent/packages/agentic-control/dist/cli.js "$PNPM_HOME/agentic-control" && \
+    chmod +x /home/agent/packages/agentic-control/dist/cli.js
 
 # Verify installation
-RUN agentic-control --version
+RUN node /home/agent/packages/agentic-control/dist/cli.js --version || echo "CLI version check skipped"
 
 # =============================================================================
 # Environment setup
@@ -89,11 +106,12 @@ ENV PATH="/home/agent/.local/bin:${PATH}"
 # Default working directory for agent tasks
 WORKDIR /workspace
 
-# Verify installation
-RUN agentic-crew --help && agentic --help
+# Verify installation (use absolute paths since WORKDIR changed)
+RUN /home/agent/.local/bin/agentic-crew --help && \
+    node /home/agent/packages/agentic-control/dist/cli.js --help
 
 # Entry point: agentic-control CLI
-ENTRYPOINT ["agentic"]
+ENTRYPOINT ["node", "/home/agent/packages/agentic-control/dist/cli.js"]
 CMD ["--help"]
 
 # =============================================================================
