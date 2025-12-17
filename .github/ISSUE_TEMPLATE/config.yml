@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/jbcom
+    about: Check the docs before filing an issue
+  # TODO: Enable org discussions after migration to jbcom organization
+  # - name: 💬 Discussions
+  #   url: https://github.com/orgs/jbcom/discussions
+  #   about: Ask questions and discuss ideas
+  - name: 💬 Discussions
+    url: https://github.com/jbcom?tab=repositories
+    about: Find repository-specific discussions in each project (org discussions coming soon)
