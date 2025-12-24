@@ -60,7 +60,7 @@
     "prepublishOnly": "npm run build && npm run test"
   },
   "dependencies": {
-    "@ai-sdk/mcp": "^0.0.12",
+    "@ai-sdk/mcp": "^1.0.1",
     "@inquirer/prompts": "8.1.0",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@octokit/rest": "^22.0.1",
