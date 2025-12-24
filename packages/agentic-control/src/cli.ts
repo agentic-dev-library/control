@@ -453,12 +453,16 @@ fleetCmd
       if (opts.json) {
         output(result.data, true);
       } else {
-        const s = result.data || [];
+        const s = result.data;
         console.log('=== Fleet Summary ===\n');
-        console.log(`Total:     ${s.total}`);
-        console.log(`Running:   ${s.running}`);
-        console.log(`Completed: ${s.completed}`);
-        console.log(`Failed:    ${s.failed}`);
+        if (s && !Array.isArray(s)) {
+          console.log(`Total:     ${s.total}`);
+          console.log(`Running:   ${s.running}`);
+          console.log(`Completed: ${s.completed}`);
+          console.log(`Failed:    ${s.failed}`);
+        } else {
+          console.log('No fleet data available.');
+        }
       }
     } catch (err) {
       console.error('❌ Summary failed:', err instanceof Error ? err.message : err);

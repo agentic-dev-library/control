@@ -4,48 +4,34 @@
 
 Unified AI agent fleet management, triage, and orchestration toolkit.
 
-### Monorepo Structure (NEW)
+### Monorepo Structure
 
-The project has been converted to a pnpm workspace monorepo, following the pattern from `agentic-crew`:
+The project is a pnpm workspace monorepo:
 
 ```
 /workspace/
 ├── pnpm-workspace.yaml          # Workspace configuration
 ├── packages/
 │   ├── agentic-control/         # Main CLI and runtime package (npm)
-│   │   ├── src/                 # TypeScript source
-│   │   ├── tests/               # Tests using vitest-agentic-control
-│   │   └── package.json
 │   └── vitest-agentic-control/  # Vitest plugin for E2E testing (npm)
-│       ├── src/                 # Plugin source
-│       │   ├── index.ts         # Main exports
-│       │   ├── mocking.ts       # AgenticMocker class
-│       │   ├── mcp.ts           # MCP server mocking
-│       │   ├── providers.ts     # AI provider mocking
-│       │   ├── sandbox.ts       # Container/sandbox mocking
-│       │   └── fixtures.ts      # Test configurations
-│       ├── tests/               # Plugin tests
-│       └── package.json
+├── scripts/
+│   ├── monitor-npm.ts           # NPM health & stats monitoring
+│   └── sync-versions.ts         # Version sync for monorepo
 └── python/                      # Python CrewAI companion (PyPI)
 ```
 
-### vitest-agentic-control Plugin
+### Release & Maintenance (UPDATED 2025-12-24)
 
-The new testing plugin provides:
-
-- **MCP Mocking**: Mock MCP servers, tools, and resources
-- **Provider Mocking**: Mock AI providers (Anthropic, OpenAI, Google, Mistral, Azure, Ollama)
-- **Sandbox Mocking**: Mock Docker container execution
-- **Test Fixtures**: Pre-configured fixtures for tokens, fleet, triage, sandbox
-- **Environment Helpers**: Easy setup/cleanup of test environment variables
-
-**Dogfooding**: The main `agentic-control` package uses `vitest-agentic-control` for its own tests, demonstrating the plugin's capabilities.
+- **Standardized Naming**: All package references updated to use `agentic-control` (unscoped) to match the published npm package.
+- **Automated Version Sync**: Added `scripts/sync-versions.ts` and `@semantic-release/exec` to ensure workspace packages stay in sync with the root version during release.
+- **NPM Monitoring**: New `pnpm run monitor:npm` command and `.github/workflows/monitor.yml` for daily health and download tracking.
+- **CI/CD Fixes**: Resolved TypeScript build error in `cli.ts` that was blocking releases.
 
 ### Test Status
 
 - **82 tests passing** (23 vitest-agentic-control + 59 agentic-control)
 - Workspace-level `pnpm run build` and `pnpm run test` commands work
-- Both packages build and test independently
+- Production release property tests are passing, validating build purity and architecture.
 
 ### Development Commands
 
@@ -59,16 +45,11 @@ pnpm run build
 # Test all packages
 pnpm run test
 
-# Build specific package
-pnpm -F agentic-control build
-pnpm -F vitest-agentic-control build
+# Monitor npm stats
+pnpm run monitor:npm
 
-# Test specific package
-pnpm -F agentic-control test
-pnpm -F vitest-agentic-control test
-
-# Format
-pnpm run format
+# Sync versions (manual)
+pnpm tsx scripts/sync-versions.ts
 ```
 
 ### Key Features
@@ -80,18 +61,5 @@ pnpm run format
 - **MCP server mocking** for E2E testing
 - **Provider mocking** for unit testing without API calls
 
-### Architecture
-
-- **packages/agentic-control**: Main TypeScript package
-  - CLI, fleet management, triage, GitHub integration, sandbox execution
-  - Exports: Fleet, AIAnalyzer, SandboxExecutor, GitHubClient, HandoffManager
-
-- **packages/vitest-agentic-control**: Testing plugin
-  - AgenticMocker, McpMocker, ProviderMocker, SandboxMocker
-  - Test fixtures and environment helpers
-
-- **python/**: Python CrewAI agents (companion package)
-
 ---
-*Monorepo conversion completed: 2025-12-15*
-*Similar pattern to agentic-crew uv workspace*
+*Release maintenance & monitoring implemented: 2025-12-24*
