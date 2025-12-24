@@ -1,9 +1,9 @@
-# @agentic/control
+# agentic-control
 
 > 🚀 **Unified AI agent fleet management, triage, and orchestration toolkit**
 
-[![npm version](https://badge.fury.io/js/@agentic/control.svg)](https://www.npmjs.com/package/@agentic/control)
-[![Docker Pulls](https://img.shields.io/docker/pulls/jbcom/@agentic/control)](https://hub.docker.com/r/jbcom/@agentic/control)
+[![npm version](https://badge.fury.io/js/agentic-control.svg)](https://www.npmjs.com/package/agentic-control)
+[![Docker Pulls](https://img.shields.io/docker/pulls/jbcom/agentic-control)](https://hub.docker.com/r/jbcom/agentic-control)
 [![CI](https://github.com/jbcom/nodejs-agentic-control/workflows/CI/badge.svg)](https://github.com/jbcom/nodejs-agentic-control/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
@@ -12,7 +12,7 @@
 
 ---
 
-## ✨ **What Makes @agentic/control Special?**
+## ✨ **What Makes agentic-control Special?**
 
 🎯 **Smart Token Management** - Automatically routes operations to the right GitHub tokens based on organization  
 🚀 **Fleet Orchestration** - Spawn and coordinate multiple Cursor Background Agents simultaneously  
@@ -74,9 +74,9 @@ Seamlessly transfer work between agents with full context preservation and autom
 ### **Option 1: npm/pnpm (Recommended)**
 ```bash
 # Install globally
-pnpm add -g @agentic/control
+pnpm add -g agentic-control
 # or
-npm install -g @agentic/control
+npm install -g agentic-control
 
 # Verify installation
 agentic --version
@@ -485,7 +485,7 @@ import {
   getTokenForRepo,
   setTokenConfig,
   addOrganization,
-} from "@agentic/control";
+} from "agentic-control";
 
 // Configure organizations programmatically
 addOrganization({
@@ -662,7 +662,7 @@ pnpm run dev
 
 ### agentic-triage (Triage Primitives)
 
-**@agentic/control** consumes triage tools from **[agentic-triage](https://github.com/jbdevprimary/agentic-triage)**:
+**agentic-control** consumes triage tools from **[agentic-triage](https://github.com/jbdevprimary/agentic-triage)**:
 
 ```typescript
 import { getTriageTools } from 'agentic-triage';
