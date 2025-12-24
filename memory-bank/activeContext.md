@@ -95,3 +95,8 @@ pnpm run format
 ---
 *Monorepo conversion completed: 2025-12-15*
 *Similar pattern to agentic-crew uv workspace*
+## Session: 2025-12-24
+- Fixed CI failures in PR #20 by addressing Biome linting and Docker build issues.
+- Resolved Biome formatting error in packages/agentic-control/src/cli.ts.
+- Fixed Dockerfile to ensure PNPM_HOME subdirectories exist for symlinks.
+- Verified all tests (59) and lints (65 files) pass.
