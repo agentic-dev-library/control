@@ -1,0 +1,47 @@
+name: 'Agentic CI Resolution'
+description: 'Automatically analyze and resolve CI failures and PR feedback'
+author: 'Jon Bogaty'
+branding:
+  icon: 'zap'
+  color: 'green'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  pr_number:
+    description: 'PR number to resolve (defaults to current PR)'
+    required: false
+  repo:
+    description: 'Repository in owner/repo format'
+    required: false
+  iterations:
+    description: 'Maximum number of resolution iterations'
+    required: false
+    default: '5'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Run CI Resolution
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        PR_NUM="${{ inputs.pr_number }}"
+        if [ -z "$PR_NUM" ]; then
+          PR_NUM=$(jq -r .pull_request.number "$GITHUB_EVENT_PATH")
+        fi
+        
+        REPO="${{ inputs.repo }}"
+        if [ -z "$REPO" ]; then
+          REPO="$GITHUB_REPOSITORY"
+        fi
+        
+        npx @agentic/control triage fix "$PR_NUM" --repo "$REPO" --iterations "${{ inputs.iterations }}"

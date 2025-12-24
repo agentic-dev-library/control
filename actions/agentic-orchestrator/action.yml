@@ -1,0 +1,34 @@
+name: 'Agentic Orchestrator'
+description: 'AI agent fleet orchestration and coordination'
+author: 'Jon Bogaty'
+branding:
+  icon: 'command'
+  color: 'purple'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  command:
+    description: 'Orchestration command (list, status, coordinate, summary)'
+    required: false
+    default: 'summary'
+  args:
+    description: 'Additional arguments for the command'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Run Orchestrator
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        npx @agentic/control fleet ${{ inputs.command }} ${{ inputs.args }}

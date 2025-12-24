@@ -1,0 +1,49 @@
+name: 'Agentic PR Review'
+description: 'AI-powered code review and feedback for Pull Requests'
+author: 'Jon Bogaty'
+branding:
+  icon: 'search'
+  color: 'blue'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  model:
+    description: 'AI model to use for review'
+    required: false
+  base:
+    description: 'Base ref for diff'
+    required: false
+    default: 'main'
+  head:
+    description: 'Head ref for diff'
+    required: false
+    default: 'HEAD'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Run PR Review
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        ARGS=""
+        if [ -n "${{ inputs.model }}" ]; then
+          ARGS="$ARGS --model ${{ inputs.model }}"
+        fi
+        if [ -n "${{ inputs.base }}" ]; then
+          ARGS="$ARGS --base ${{ inputs.base }}"
+        fi
+        if [ -n "${{ inputs.head }}" ]; then
+          ARGS="$ARGS --head ${{ inputs.head }}"
+        fi
+        
+        npx @agentic/control triage review $ARGS

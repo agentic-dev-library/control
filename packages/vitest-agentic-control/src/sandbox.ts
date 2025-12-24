@@ -1,5 +1,5 @@
 /**
- * Sandbox execution mocking utilities for agentic-control testing.
+ * Sandbox execution mocking utilities for @agentic/control testing.
  *
  * This module provides utilities for mocking Docker container execution
  * and sandbox operations during testing. It allows you to simulate
@@ -95,7 +95,7 @@ export interface MockContainer {
  *
  * @example
  * ```typescript
- * import { SandboxMocker } from 'vitest-agentic-control';
+ * import { SandboxMocker } from 'vitest-@agentic/control';
  *
  * const mocker = new SandboxMocker();
  *
@@ -350,7 +350,7 @@ export class SandboxMocker {
   }
 
   /**
-   * Mock the ContainerManager class from agentic-control.
+   * Mock the ContainerManager class from @agentic/control.
    */
   mockContainerManager(): Mock {
     const mockManager = vi.fn().mockImplementation(() => ({
@@ -384,16 +384,16 @@ export class SandboxMocker {
       }),
     }));
 
-    vi.doMock('agentic-control/sandbox', () => ({
+    vi.doMock('@agentic/control/sandbox', () => ({
       ContainerManager: mockManager,
     }));
 
-    this.mockedModules.add('agentic-control/sandbox');
+    this.mockedModules.add('@agentic/control/sandbox');
     return mockManager;
   }
 
   /**
-   * Mock the SandboxExecutor class from agentic-control.
+   * Mock the SandboxExecutor class from @agentic/control.
    */
   mockSandboxExecutor(): Mock {
     const mockExecutor = vi.fn().mockImplementation(() => ({
@@ -405,11 +405,11 @@ export class SandboxMocker {
       }),
     }));
 
-    vi.doMock('agentic-control/sandbox', () => ({
+    vi.doMock('@agentic/control/sandbox', () => ({
       SandboxExecutor: mockExecutor,
     }));
 
-    this.mockedModules.add('agentic-control/sandbox');
+    this.mockedModules.add('@agentic/control/sandbox');
     return mockExecutor;
   }
 

@@ -1,5 +1,5 @@
-# agentic-control Docker Image
-# Provides both agentic-control (TypeScript) and agentic-crew (Python)
+# @agentic/control Docker Image
+# Provides both @agentic/control (TypeScript) and agentic-crew (Python)
 # for AI agent fleet management and crew orchestration
 
 # =============================================================================
@@ -57,7 +57,7 @@ WORKDIR /home/agent
 RUN pip install --user --no-cache-dir "agentic-crew[crewai]"
 
 # =============================================================================
-# Install agentic-control (TypeScript control plane) - built from source
+# Install @agentic/control (TypeScript control plane) - built from source
 # =============================================================================
 
 # Setup pnpm for global installs (required for pnpm v9+)
@@ -74,8 +74,8 @@ RUN mkdir -p "$PNPM_HOME" && echo "pnpm directory created successfully"
 
 # Copy package files for dependency installation
 COPY --chown=agent:agent package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY --chown=agent:agent packages/agentic-control/package.json ./packages/agentic-control/
-COPY --chown=agent:agent packages/vitest-agentic-control/package.json ./packages/vitest-agentic-control/
+COPY --chown=agent:agent packages/@agentic/control/package.json ./packages/@agentic/control/
+COPY --chown=agent:agent packages/vitest-@agentic/control/package.json ./packages/vitest-@agentic/control/
 
 # Install all dependencies (including devDependencies for AI SDK providers)
 # Note: devDependencies include @ai-sdk/anthropic which is needed at runtime
@@ -88,12 +88,12 @@ COPY --chown=agent:agent packages/ ./packages/
 RUN pnpm run build
 
 # Create global symlinks for CLI commands
-RUN ln -s /home/agent/packages/agentic-control/dist/cli.js "$PNPM_HOME/agentic" && \
-    ln -s /home/agent/packages/agentic-control/dist/cli.js "$PNPM_HOME/agentic-control" && \
-    chmod +x /home/agent/packages/agentic-control/dist/cli.js
+RUN ln -s /home/agent/packages/@agentic/control/dist/cli.js "$PNPM_HOME/agentic" && \
+    ln -s /home/agent/packages/@agentic/control/dist/cli.js "$PNPM_HOME/@agentic/control" && \
+    chmod +x /home/agent/packages/@agentic/control/dist/cli.js
 
 # Verify installation
-RUN node /home/agent/packages/agentic-control/dist/cli.js --version || echo "CLI version check skipped"
+RUN node /home/agent/packages/@agentic/control/dist/cli.js --version || echo "CLI version check skipped"
 
 # =============================================================================
 # Environment setup
@@ -108,10 +108,10 @@ WORKDIR /workspace
 
 # Verify installation (use absolute paths since WORKDIR changed)
 RUN /home/agent/.local/bin/agentic-crew --help && \
-    node /home/agent/packages/agentic-control/dist/cli.js --help
+    node /home/agent/packages/@agentic/control/dist/cli.js --help
 
-# Entry point: agentic-control CLI
-ENTRYPOINT ["node", "/home/agent/packages/agentic-control/dist/cli.js"]
+# Entry point: @agentic/control CLI
+ENTRYPOINT ["node", "/home/agent/packages/@agentic/control/dist/cli.js"]
 CMD ["--help"]
 
 # =============================================================================
@@ -119,18 +119,18 @@ CMD ["--help"]
 # =============================================================================
 #
 # Build:
-#   docker build -t agentic-control .
+#   docker build -t @agentic/control .
 #
 # Run fleet status:
-#   docker run --rm agentic-control fleet status
+#   docker run --rm @agentic/control fleet status
 #
 # Run a crew (requires mounting workspace and setting API keys):
 #   docker run --rm \
 #     -v $(pwd):/workspace \
 #     -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-#     agentic-control sandbox run --image agentic-control "Implement feature X"
+#     @agentic/control sandbox run --image @agentic/control "Implement feature X"
 #
 # Interactive shell:
-#   docker run --rm -it --entrypoint bash agentic-control
+#   docker run --rm -it --entrypoint bash @agentic/control
 #
 # =============================================================================

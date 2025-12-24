@@ -754,6 +754,108 @@ triageCmd
   });
 
 triageCmd
+  .command('pr')
+  .description('AI-powered PR triage and analysis')
+  .argument('<pr-number>', 'PR number to triage', (v) => parsePositiveInt(v, 'pr-number'))
+  .option('--repo <owner/repo>', 'Repository (defaults to config)')
+  .option('--json', 'Output as JSON')
+  .action(async (prNumber, opts) => {
+    try {
+      const { Triage } = await import('./triage/triage.js');
+      const cfg = getConfig();
+      const repo = opts.repo || cfg.defaultRepository;
+
+      if (!repo) {
+        console.error('❌ Repository is required. Use --repo or set defaultRepository in config.');
+        process.exit(1);
+      }
+
+      const triage = new Triage({
+        github: {
+          token: process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '',
+          repo,
+        },
+        resolver: {
+          repo,
+          model: getDefaultModel(),
+        },
+      });
+
+      console.log(`🔍 Triaging PR #${prNumber} in ${repo}...`);
+      const result = await triage.analyze(prNumber);
+
+      if (opts.json) {
+        output(result, true);
+      } else {
+        console.log(triage.formatTriageReport(result));
+      }
+    } catch (err) {
+      console.error('❌ PR triage failed:', err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+triageCmd
+  .command('fix')
+  .description('Automatically resolve issues in a Pull Request')
+  .argument('<pr-number>', 'PR number to fix', (v) => parsePositiveInt(v, 'pr-number'))
+  .option('--repo <owner/repo>', 'Repository (defaults to config)')
+  .option('--iterations <number>', 'Max iterations', '5')
+  .action(async (prNumber, opts) => {
+    try {
+      const { Triage } = await import('./triage/triage.js');
+      const cfg = getConfig();
+      const repo = opts.repo || cfg.defaultRepository;
+
+      if (!repo) {
+        console.error('❌ Repository is required. Use --repo or set defaultRepository in config.');
+        process.exit(1);
+      }
+
+      const triage = new Triage({
+        github: {
+          token: process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '',
+          repo,
+        },
+        resolver: {
+          repo,
+          model: getDefaultModel(),
+        },
+      });
+
+      console.log(`🚀 Starting CI/PR resolution for PR #${prNumber} in ${repo}...`);
+
+      const result = await triage.runUntilReady(prNumber, {
+        maxIterations: Number.parseInt(opts.iterations, 10),
+        onProgress: (t, i) => {
+          console.log(`\nIteration ${i}: Status = ${t.status}`);
+          console.log(`Unaddressed feedback: ${t.feedback.unaddressed}`);
+          console.log(`Blockers: ${t.blockers.length}`);
+        },
+      });
+
+      console.log('\n=== Resolution Summary ===\n');
+      console.log(`Success: ${result.success ? '✅' : '❌'}`);
+      console.log(`Iterations: ${result.iterations}`);
+      console.log(`Final Status: ${result.finalTriage.status}`);
+
+      if (result.allActions.length > 0) {
+        console.log(`\nActions Taken (${result.allActions.length}):`);
+        for (const action of result.allActions) {
+          console.log(`- [${action.success ? '✅' : '❌'}] ${action.action}: ${action.result}`);
+        }
+      }
+
+      if (!result.success) {
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error('❌ PR resolution failed:', err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+triageCmd
   .command('analyze')
   .description('Analyze agent conversation')
   .argument('<agent-id>', 'Agent ID to analyze')
