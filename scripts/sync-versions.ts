@@ -4,7 +4,7 @@
  * Syncs the version from the root package.json to all workspace packages.
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,12 +29,12 @@ function main() {
     try {
       const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
       pkgJson.version = version;
-      
+
       // Also update workspace dependencies if any
       if (pkgJson.dependencies) {
         for (const dep in pkgJson.dependencies) {
           if (pkgJson.dependencies[dep] === 'workspace:*') {
-            // Keep workspace:* or update to exact version? 
+            // Keep workspace:* or update to exact version?
             // Usually workspace:* is preferred in source.
           }
         }

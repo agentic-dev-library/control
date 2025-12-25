@@ -3,3 +3,7 @@
 # - packages/vitest-agentic-control = vitest plugin for E2E testing (npm)
 packages:
   - 'packages/*'
+
+# Allow git-hosted packages to run build scripts
+onlyBuiltDependencies:
+  - "@agentic/triage"

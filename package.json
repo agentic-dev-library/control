@@ -21,7 +21,8 @@
     "monitor:npm": "tsx scripts/monitor-npm.ts",
     "clean": "pnpm -r exec rm -rf dist && rm -rf node_modules",
     "prepublishOnly": "pnpm run build && pnpm run test",
-    "prepare": "echo 'Run: pip install pre-commit && pre-commit install'"
+    "prepare": "echo 'Run: pip install pre-commit && pre-commit install'",
+    "postinstall": "node scripts/build-deps.js || true"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
