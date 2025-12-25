@@ -40,7 +40,7 @@ function main() {
         }
       }
 
-      writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n');
+      writeFileSync(pkgJsonPath, `${JSON.stringify(pkgJson, null, 2)}\n`);
       console.log(`✅ Updated ${pkgName} to ${version}`);
     } catch (e) {
       console.error(`❌ Failed to update ${pkgName}:`, e);

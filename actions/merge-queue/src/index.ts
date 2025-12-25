@@ -53,7 +53,7 @@ async function run(): Promise<void> {
     switch (command) {
       case 'add': {
         const pr = core.getInput('pr', { required: true });
-        const priority = Number.parseInt(core.getInput('priority') || '2') as 1 | 2 | 3;
+        const priority = Number.parseInt(core.getInput('priority') || '2', 10) as 1 | 2 | 3;
         await addToQueue(octokit, owner, repo, issue.number, state, pr, priority);
         break;
       }
@@ -249,7 +249,7 @@ async function processQueue(
   repo: string,
   issueNumber: number,
   state: QueueState,
-  token: string
+  _token: string
 ): Promise<number> {
   let processed = 0;
 
@@ -262,7 +262,7 @@ async function processQueue(
       const { data: pr } = await octokit.rest.pulls.get({
         owner: prOwner,
         repo: prRepo,
-        pull_number: Number.parseInt(prNum),
+        pull_number: Number.parseInt(prNum, 10),
       });
 
       if (pr.state !== 'open') {
@@ -283,7 +283,7 @@ async function processQueue(
       await octokit.rest.pulls.merge({
         owner: prOwner,
         repo: prRepo,
-        pull_number: Number.parseInt(prNum),
+        pull_number: Number.parseInt(prNum, 10),
         merge_method: 'squash',
       });
 
@@ -318,7 +318,7 @@ async function refreshQueue(
   repo: string,
   issueNumber: number,
   state: QueueState,
-  token: string
+  _token: string
 ): Promise<void> {
   for (const item of state.items) {
     const [prOwner, prRepoNum] = item.id.split('/');
@@ -328,7 +328,7 @@ async function refreshQueue(
       const { data: pr } = await octokit.rest.pulls.get({
         owner: prOwner,
         repo: prRepo,
-        pull_number: Number.parseInt(prNum),
+        pull_number: Number.parseInt(prNum, 10),
       });
 
       item.mergeable = pr.mergeable ?? false;
