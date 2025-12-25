@@ -15,7 +15,7 @@
       "import": "./dist/ollama.js"
     },
     "./jules": {
-      "types": "./dist/jules.d.ts", 
+      "types": "./dist/jules.d.ts",
       "import": "./dist/jules.js"
     },
     "./cursor": {

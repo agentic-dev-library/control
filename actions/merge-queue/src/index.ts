@@ -1,6 +1,6 @@
 /**
  * Agentic Merge Queue - GitHub Action
- * 
+ *
  * Cross-organization merge queue using a GitHub Issue as state store.
  * Works with @agentic/triage primitives for queue management.
  */
@@ -40,8 +40,9 @@ async function run(): Promise<void> {
   try {
     const command = core.getInput('command', { required: true });
     const token = core.getInput('github-token', { required: true });
-    const queueRepo = core.getInput('queue-repo') || `${github.context.repo.owner}/${github.context.repo.repo}`;
-    
+    const queueRepo =
+      core.getInput('queue-repo') || `${github.context.repo.owner}/${github.context.repo.repo}`;
+
     const octokit = github.getOctokit(token);
     const [owner, repo] = queueRepo.split('/');
 
@@ -52,7 +53,7 @@ async function run(): Promise<void> {
     switch (command) {
       case 'add': {
         const pr = core.getInput('pr', { required: true });
-        const priority = parseInt(core.getInput('priority') || '2') as 1 | 2 | 3;
+        const priority = Number.parseInt(core.getInput('priority') || '2') as 1 | 2 | 3;
         await addToQueue(octokit, owner, repo, issue.number, state, pr, priority);
         break;
       }
@@ -79,7 +80,6 @@ async function run(): Promise<void> {
     }
 
     core.setOutput('queue-length', state.items.length);
-
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message);
@@ -147,11 +147,14 @@ function parseQueueState(body: string): QueueState {
 function formatIssueBody(state: QueueState): string {
   state.updatedAt = new Date().toISOString();
 
-  const tableRows = state.items.map((item, i) => {
-    const priorityIcon = item.priority === 1 ? '🔴' : item.priority === 2 ? '🟡' : '🟢';
-    const statusIcon = item.status === 'processing' ? '⚙️' : item.status === 'failed' ? '❌' : '⏳';
-    return `| ${i + 1} | [${item.id}](https://github.com/${item.id.replace('#', '/pull/')}) | ${priorityIcon} | ${statusIcon} ${item.status} | ${item.retries} |`;
-  }).join('\n');
+  const tableRows = state.items
+    .map((item, i) => {
+      const priorityIcon = item.priority === 1 ? '🔴' : item.priority === 2 ? '🟡' : '🟢';
+      const statusIcon =
+        item.status === 'processing' ? '⚙️' : item.status === 'failed' ? '❌' : '⏳';
+      return `| ${i + 1} | [${item.id}](https://github.com/${item.id.replace('#', '/pull/')}) | ${priorityIcon} | ${statusIcon} ${item.status} | ${item.retries} |`;
+    })
+    .join('\n');
 
   return `# 🔄 Ecosystem Merge Queue
 
@@ -189,7 +192,7 @@ async function addToQueue(
   prId: string,
   priority: 1 | 2 | 3
 ): Promise<void> {
-  if (state.items.some(i => i.id === prId)) {
+  if (state.items.some((i) => i.id === prId)) {
     core.info(`${prId} already in queue`);
     return;
   }
@@ -215,7 +218,9 @@ async function addToQueue(
     body: formatIssueBody(state),
   });
 
-  core.info(`Added ${prId} to queue at position ${state.items.findIndex(i => i.id === prId) + 1}`);
+  core.info(
+    `Added ${prId} to queue at position ${state.items.findIndex((i) => i.id === prId) + 1}`
+  );
 }
 
 async function removeFromQueue(
@@ -226,7 +231,7 @@ async function removeFromQueue(
   state: QueueState,
   prId: string
 ): Promise<void> {
-  state.items = state.items.filter(i => i.id !== prId);
+  state.items = state.items.filter((i) => i.id !== prId);
 
   await octokit.rest.issues.update({
     owner,
@@ -248,7 +253,7 @@ async function processQueue(
 ): Promise<number> {
   let processed = 0;
 
-  for (const item of state.items.filter(i => i.status === 'pending')) {
+  for (const item of state.items.filter((i) => i.status === 'pending')) {
     const [prOwner, prRepoNum] = item.id.split('/');
     const [prRepo, prNum] = prRepoNum.split('#');
 
@@ -257,12 +262,12 @@ async function processQueue(
       const { data: pr } = await octokit.rest.pulls.get({
         owner: prOwner,
         repo: prRepo,
-        pull_number: parseInt(prNum),
+        pull_number: Number.parseInt(prNum),
       });
 
       if (pr.state !== 'open') {
         // PR is closed, remove from queue
-        state.items = state.items.filter(i => i.id !== item.id);
+        state.items = state.items.filter((i) => i.id !== item.id);
         continue;
       }
 
@@ -278,16 +283,15 @@ async function processQueue(
       await octokit.rest.pulls.merge({
         owner: prOwner,
         repo: prRepo,
-        pull_number: parseInt(prNum),
+        pull_number: Number.parseInt(prNum),
         merge_method: 'squash',
       });
 
       // Success - remove from queue
-      state.items = state.items.filter(i => i.id !== item.id);
+      state.items = state.items.filter((i) => i.id !== item.id);
       state.stats.merged24h++;
       processed++;
       core.info(`✅ Merged ${item.id}`);
-
     } catch (error) {
       item.status = 'failed';
       item.lastError = error instanceof Error ? error.message : 'Unknown error';
@@ -324,7 +328,7 @@ async function refreshQueue(
       const { data: pr } = await octokit.rest.pulls.get({
         owner: prOwner,
         repo: prRepo,
-        pull_number: parseInt(prNum),
+        pull_number: Number.parseInt(prNum),
       });
 
       item.mergeable = pr.mergeable ?? false;
@@ -337,9 +341,9 @@ async function refreshQueue(
       });
 
       const allPassed = checks.check_runs.every(
-        c => c.conclusion === 'success' || c.conclusion === 'skipped'
+        (c) => c.conclusion === 'success' || c.conclusion === 'skipped'
       );
-      const anyFailed = checks.check_runs.some(c => c.conclusion === 'failure');
+      const anyFailed = checks.check_runs.some((c) => c.conclusion === 'failure');
 
       item.checks = anyFailed ? 'failing' : allPassed ? 'passing' : 'pending';
 
@@ -352,7 +356,7 @@ async function refreshQueue(
   }
 
   // Remove completed items
-  state.items = state.items.filter(i => i.status !== 'completed');
+  state.items = state.items.filter((i) => i.status !== 'completed');
 
   await octokit.rest.issues.update({
     owner,

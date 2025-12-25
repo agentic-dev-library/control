@@ -1,15 +1,15 @@
 /**
  * Ollama Provider Implementation
- * 
+ *
  * Creates agents that use Ollama for LLM inference.
  * Ollama is free/self-hosted, ideal for trivial/simple tasks.
  */
 
 import type {
-  AgentDefinition,
-  AgentTask,
-  AgentResult,
   AgentCapabilities,
+  AgentDefinition,
+  AgentResult,
+  AgentTask,
   LLMEvaluator,
 } from '@agentic/triage';
 

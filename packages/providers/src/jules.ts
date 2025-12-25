@@ -1,16 +1,11 @@
 /**
  * Google Jules Provider Implementation
- * 
+ *
  * Creates agents that use Google Jules for complex async tasks.
  * Jules can create PRs, run commands, and handle multi-file changes.
  */
 
-import type {
-  AgentDefinition,
-  AgentTask,
-  AgentResult,
-  AgentCapabilities,
-} from '@agentic/triage';
+import type { AgentCapabilities, AgentDefinition, AgentResult, AgentTask } from '@agentic/triage';
 
 export interface JulesConfig {
   /** Jules API key */
@@ -73,12 +68,14 @@ export function createJulesAgent(
           },
           body: JSON.stringify({
             prompt: formatJulesPrompt(task),
-            sourceContext: task.repo ? {
-              source: `sources/github/${task.repo}`,
-              githubRepoContext: {
-                startingBranch: 'main',
-              },
-            } : undefined,
+            sourceContext: task.repo
+              ? {
+                  source: `sources/github/${task.repo}`,
+                  githubRepoContext: {
+                    startingBranch: 'main',
+                  },
+                }
+              : undefined,
             automationMode,
           }),
         });
@@ -94,7 +91,7 @@ export function createJulesAgent(
         }
 
         const result = await response.json();
-        
+
         return {
           success: true,
           data: {
@@ -137,7 +134,7 @@ export async function pollJulesSession(
   }
 
   const result = await response.json();
-  
+
   return {
     state: result.state,
     prUrl: result.pullRequestUrl,

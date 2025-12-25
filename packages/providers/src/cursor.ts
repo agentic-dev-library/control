@@ -1,16 +1,11 @@
 /**
  * Cursor Cloud Agent Provider Implementation
- * 
+ *
  * Creates agents that use Cursor Cloud Agents for expert-level tasks.
  * WARNING: Cursor Cloud Agents are expensive - use sparingly!
  */
 
-import type {
-  AgentDefinition,
-  AgentTask,
-  AgentResult,
-  AgentCapabilities,
-} from '@agentic/triage';
+import type { AgentCapabilities, AgentDefinition, AgentResult, AgentTask } from '@agentic/triage';
 
 export interface CursorConfig {
   /** Cursor API key */
@@ -34,7 +29,7 @@ const DEFAULT_BASE_URL = 'https://api.cursor.com/v0';
 
 /**
  * Create a Cursor Cloud Agent for the registry
- * 
+ *
  * ⚠️ EXPENSIVE - Requires explicit approval by default
  */
 export function createCursorAgent(
@@ -70,7 +65,7 @@ export function createCursorAgent(
         const response = await fetch(`${baseUrl}/agents`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${config.apiKey}`,
+            Authorization: `Bearer ${config.apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -95,7 +90,7 @@ export function createCursorAgent(
         }
 
         const result = await response.json();
-        
+
         return {
           success: true,
           data: {
@@ -129,7 +124,7 @@ export async function pollCursorAgent(
 
   const response = await fetch(`${baseUrl}/agents/${agentId}`, {
     headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
+      Authorization: `Bearer ${config.apiKey}`,
     },
   });
 
@@ -138,7 +133,7 @@ export async function pollCursorAgent(
   }
 
   const result = await response.json();
-  
+
   return {
     agentId: result.id,
     status: result.status,
