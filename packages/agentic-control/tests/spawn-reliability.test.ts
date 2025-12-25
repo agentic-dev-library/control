@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { Fleet } from '../src/fleet/fleet.js';
-import { CursorAPI } from '../src/fleet/cursor-api.js';
 
 describe('Fleet Spawn Reliability', () => {
   let fleet: Fleet;
@@ -22,7 +21,7 @@ describe('Fleet Spawn Reliability', () => {
   });
 
   it('should fail when API returns 500 without retries', async () => {
-    (global.fetch as any).mockResolvedValue({
+    (global.fetch as Mock).mockResolvedValue({
       ok: false,
       status: 500,
       text: () => Promise.resolve('Internal Server Error'),
@@ -40,8 +39,7 @@ describe('Fleet Spawn Reliability', () => {
   });
 
   it('should succeed if API succeeds after a transient failure (with retries implemented)', async () => {
-    // This test will fail until we implement retries
-    (global.fetch as any)
+    (global.fetch as Mock)
       .mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -69,7 +67,7 @@ describe('Fleet Spawn Reliability', () => {
     const abortError = new Error('The operation was aborted');
     abortError.name = 'AbortError';
 
-    (global.fetch as any)
+    (global.fetch as Mock)
       .mockRejectedValueOnce(abortError)
       .mockResolvedValueOnce({
         ok: true,
@@ -89,7 +87,7 @@ describe('Fleet Spawn Reliability', () => {
   });
 
   it('should retry on network errors', async () => {
-    (global.fetch as any)
+    (global.fetch as Mock)
       .mockRejectedValueOnce(new Error('Network connection lost'))
       .mockResolvedValueOnce({
         ok: true,
