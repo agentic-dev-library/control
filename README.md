@@ -1,22 +1,23 @@
-# agentic-control
+# @agentic-dev-library/control
 
-> 🚀 **Unified AI agent fleet management, triage, and orchestration toolkit**
+> 🚀 **Orchestration layer for AI agent fleet management - multi-agent routing, CI resolution, and GitHub Marketplace actions**
 
-[![npm version](https://badge.fury.io/js/agentic-control.svg)](https://www.npmjs.com/package/agentic-control)
+[![npm version](https://badge.fury.io/js/@agentic-dev-library%2Fcontrol.svg)](https://www.npmjs.com/package/@agentic-dev-library/control)
 [![Docker Pulls](https://img.shields.io/docker/pulls/jbcom/agentic-control)](https://hub.docker.com/r/jbcom/agentic-control)
-[![CI](https://github.com/jbcom/nodejs-agentic-control/workflows/CI/badge.svg)](https://github.com/jbcom/nodejs-agentic-control/actions)
+[![CI](https://github.com/agentic-dev-library/control/workflows/CI/badge.svg)](https://github.com/agentic-dev-library/control/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
 
-**Transform your development workflow with AI-powered agent orchestration.** Spawn, coordinate, and manage fleets of AI agents across your repositories with intelligent token switching, advanced triage capabilities, and secure sandbox execution.
+**Transform your development workflow with AI-powered agent orchestration.** Intelligent multi-agent routing (Ollama/Jules/Cursor), automated CI resolution, PR lifecycle management, and GitHub Marketplace actions for seamless DevOps automation.
 
 ---
 
-## ✨ **What Makes agentic-control Special?**
+## ✨ **What Makes @agentic-dev-library/control Special?**
 
-🎯 **Smart Token Management** - Automatically routes operations to the right GitHub tokens based on organization  
-🚀 **Fleet Orchestration** - Spawn and coordinate multiple Cursor Background Agents simultaneously  
-🔍 **AI-Powered Triage** - Analyze conversations, review code, and extract actionable insights  
+🎯 **Multi-Agent Orchestration** - Intelligent routing between Ollama, Jules, and Cursor agents  
+🚀 **CI Resolution Pipelines** - Automated fixing of failing CI/CD workflows  
+🔍 **PR Lifecycle Management** - End-to-end pull request automation  
+🎭 **GitHub Marketplace Actions** - Ready-to-use composite actions for your workflows  
 🏗️ **Sandbox Execution** - Run AI agents in isolated Docker containers for safe local development  
 🤝 **Seamless Handoffs** - Transfer work between agents with full context preservation  
 🔐 **Security First** - Token sanitization, safe subprocess execution, and zero hardcoded credentials  
@@ -74,9 +75,9 @@ Seamlessly transfer work between agents with full context preservation and autom
 ### **Option 1: npm/pnpm (Recommended)**
 ```bash
 # Install globally
-pnpm add -g agentic-control
+pnpm add -g @agentic-dev-library/control
 # or
-npm install -g agentic-control
+npm install -g @agentic-dev-library/control
 
 # Verify installation
 agentic --version
@@ -97,8 +98,8 @@ docker run --rm \
 
 ### **Option 3: Development Setup**
 ```bash
-git clone https://github.com/jbcom/nodejs-agentic-control.git
-cd agentic-control
+git clone https://github.com/agentic-dev-library/control.git
+cd control
 pnpm install
 pnpm run build
 pnpm run agentic --help
@@ -443,6 +444,53 @@ Configure a consistent identity for all PR review operations:
 export AGENTIC_PR_REVIEW_TOKEN=GITHUB_TOKEN
 ```
 
+## 🎭 **GitHub Marketplace Actions**
+
+Ready-to-use composite actions for seamless CI/CD integration:
+
+### **agentic-pr-review**
+AI-powered code review for pull requests
+
+```yaml
+- uses: agentic-dev-library/control/actions/agentic-pr-review@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model: claude-sonnet-4-20250514  # optional
+    base: main  # optional
+    head: HEAD  # optional
+```
+
+### **agentic-ci-resolution**
+Automated CI failure analysis and resolution
+
+```yaml
+- uses: agentic-dev-library/control/actions/agentic-ci-resolution@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    run_id: ${{ github.run_id }}
+```
+
+### **agentic-issue-triage**
+Intelligent issue triage and labeling
+
+```yaml
+- uses: agentic-dev-library/control/actions/agentic-issue-triage@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    issue_number: ${{ github.event.issue.number }}
+```
+
+### **agentic-orchestrator**
+Multi-agent fleet coordination
+
+```yaml
+- uses: agentic-dev-library/control/actions/agentic-orchestrator@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    command: coordinate  # or list, status, summary
+    args: "--repo my-org/repo --pr 123"
+```
+
 ## 🎯 **Real-World Use Cases**
 
 ### **🔧 Automated Code Maintenance**
@@ -478,14 +526,27 @@ agentic fleet coordinate --repo my-org/app --pr 200 \
 
 ```typescript
 import { 
+  // Orchestrators - Multi-agent routing
   Fleet, 
+  CursorAPI,
+  CrewTool,
+  
+  // Pipelines - CI resolution and PR lifecycle
   AIAnalyzer, 
-  SandboxExecutor,
   GitHubClient,
+  HandoffManager,
+  SandboxExecutor,
+  
+  // Actions - GitHub Actions integration
   getTokenForRepo,
   setTokenConfig,
   addOrganization,
-} from "agentic-control";
+} from "@agentic-dev-library/control";
+
+// Or import from specific modules
+import { Fleet, CursorAPI } from "@agentic-dev-library/control/orchestrators";
+import { AIAnalyzer, GitHubClient } from "@agentic-dev-library/control/pipelines";
+import { getTokenForRepo } from "@agentic-dev-library/control/actions";
 
 // Configure organizations programmatically
 addOrganization({
@@ -625,19 +686,19 @@ Instead of:
 - uses: actions/checkout@v4  # ⚠️ Vulnerable to tag manipulation
 ```
 
-#### npm Trusted Publishing (OIDC)
-Package publishing uses OpenID Connect (OIDC) authentication instead of long-lived tokens. This eliminates the risk of token leakage and provides cryptographic proof of package provenance.
+#### npm Publishing with Provenance
+Package publishing uses the `NPM_TOKEN` secret with provenance attestation enabled. This provides cryptographic proof of package provenance and supply-chain transparency.
 
-**Setup on npmjs.com:**
-1. Navigate to package settings → Publishing Access
-2. Add GitHub Actions as a trusted publisher
-3. Configure: `owner/repo`, `main` branch, `ci.yml` workflow, `release-node` job
+**Configured in CI:**
+- `NPM_CONFIG_PROVENANCE: "true"` enables provenance attestation
+- `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` authenticates to npm registry
+- Published to `@agentic-dev-library` organization on npmjs.com
 
 **Benefits:**
-- No `NPM_TOKEN` secret needed
 - Automatic provenance attestation
 - Cryptographic supply-chain transparency
-- Time-limited credentials per publish
+- Secure token-based authentication
+- Published under scoped organization
 
 ## Development
 
@@ -662,7 +723,7 @@ pnpm run dev
 
 ### agentic-triage (Triage Primitives)
 
-**agentic-control** consumes triage tools from **[agentic-triage](https://github.com/jbdevprimary/agentic-triage)**:
+**@agentic-dev-library/control** consumes triage tools from **[agentic-triage](https://github.com/jbdevprimary/agentic-triage)**:
 
 ```typescript
 import { getTriageTools } from 'agentic-triage';
@@ -683,6 +744,14 @@ agentic-triage provides:
 - **Vercel AI SDK Tools** - Portable triage tools for any AI agent
 - **MCP Server** - Model Context Protocol server for Claude/Cursor
 - **Multi-Provider Support** - GitHub, Beads, Jira, Linear
+
+### Architecture
+
+This package serves as the **orchestration layer** that:
+- Integrates with Python crewai library via `CrewTool`
+- Implements multi-agent orchestration (Ollama/Jules/Cursor routing)
+- Provides GitHub Marketplace actions for CI/CD workflows
+- Consumes primitives from `agentic-triage` package
 
 ## Contributing
 

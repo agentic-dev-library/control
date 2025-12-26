@@ -1,10 +1,12 @@
 /**
- * agentic-control
+ * @agentic-dev-library/control
  *
- * Unified AI agent fleet management, triage, and orchestration toolkit
- * for control centers managing multi-organization GitHub workflows.
+ * Orchestration layer for AI agent fleet management consuming @agentic/triage primitives.
  *
  * Features:
+ * - Multi-agent orchestration (Ollama/Jules/Cursor routing)
+ * - CI resolution and PR lifecycle pipelines
+ * - GitHub Marketplace actions integration
  * - Intelligent token switching (auto-selects org-appropriate tokens)
  * - Fleet management (spawn, monitor, coordinate agents)
  * - AI-powered triage (conversation analysis, code review)
@@ -14,7 +16,9 @@
  * @packageDocumentation
  */
 
-// Core exports
+// GitHub Actions integration
+export * from './actions/index.js';
+// Core exports (for backward compatibility)
 export * from './core/index.js';
 // Crew tool (agentic-crew CLI integration)
 export * from './crews/index.js';
@@ -26,15 +30,19 @@ export {
   Fleet,
   type FleetConfig,
 } from './fleet/index.js';
-
 // GitHub operations
 export { cloneRepo, GitHubClient, isValidGitRef, isValidRepoFormat } from './github/index.js';
-
 // Handoff protocols
 export { HandoffManager, type TakeoverOptions } from './handoff/index.js';
-export type { ContainerConfig, ContainerResult, SandboxOptions } from './sandbox/index.js';
+// Orchestration layer - Multi-agent routing
+export * from './orchestrators/index.js';
+// Pipeline automation - CI resolution, PR lifecycle
+export * from './pipelines/index.js';
+
 // Sandbox execution
+export type { ContainerConfig, ContainerResult, SandboxOptions } from './sandbox/index.js';
 export { ContainerManager, SandboxExecutor } from './sandbox/index.js';
+
 // AI Triage
 export { AIAnalyzer, type AIAnalyzerOptions } from './triage/index.js';
 
