@@ -36,29 +36,21 @@ jobs:
   delegate-to-jules:
     name: Delegate to Jules
     needs: review
-    if: needs.review.outputs.suggestion_count > 5
+    # Only run if many suggestions AND Jules API key is available
+    if: needs.review.outputs.suggestion_count > 5 && secrets.GOOGLE_JULES_API_KEY != ''
     runs-on: ubuntu-latest
+    continue-on-error: true  # Don't fail the workflow if Jules delegation fails
     steps:
-      - name: Check for API Key
-        id: check
-        env:
-          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
-        run: |
-          if [[ -z "$GOOGLE_JULES_API_KEY" ]]; then
-            echo "available=false" >> $GITHUB_OUTPUT
-          else
-            echo "available=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Acknowledge
-        if: steps.check.outputs.available == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "🤖 Found ${{ needs.review.outputs.suggestion_count }} suggestions. Delegating to Jules for a more in-depth refactor..."
+          gh pr comment "$PR_NUMBER" --repo "$REPO" \
+            --body "🤖 Found ${{ needs.review.outputs.suggestion_count }} suggestions. Delegating to Jules for a more in-depth refactor..."
 
       - name: Create Jules Session
-        if: steps.check.outputs.available == 'true'
         id: jules
         env:
           GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
@@ -99,19 +91,14 @@ jobs:
           echo "session_id=$SESSION_ID" >> $GITHUB_OUTPUT
 
       - name: Post Session Link
-        if: steps.check.outputs.available == 'true' && steps.jules.outputs.session_id != ''
+        if: steps.jules.outputs.session_id != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "## 🤖 Jules Session Created
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "## 🤖 Jules Session Created
 
           ➡️ **[Monitor Session](${{ steps.jules.outputs.session_url }})**
 
           Jules will analyze the PR and create a new PR with the suggested refactoring."
-
-      - name: Post API Key Missing
-        if: steps.check.outputs.available == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "⚠️ GOOGLE_JULES_API_KEY not configured. Cannot delegate to Jules."
