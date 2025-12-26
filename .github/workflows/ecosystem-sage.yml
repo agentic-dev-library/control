@@ -1,0 +1,103 @@
+name: Ecosystem Sage
+
+on:
+  # On-call triggers
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  
+  # Can be called by other workflows
+  workflow_call:
+    inputs:
+      query:
+        description: 'The question or task to process'
+        required: true
+        type: string
+      context_repo:
+        description: 'Repository context (owner/repo)'
+        required: false
+        type: string
+      context_issue:
+        description: 'Issue/PR number for context'
+        required: false
+        type: number
+    outputs:
+      response:
+        description: 'The Sage response'
+        value: ${{ jobs.sage.outputs.response }}
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      query:
+        description: 'Question to answer'
+        required: true
+        type: string
+      context_repo:
+        description: 'Repository for context'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  sage:
+    name: Sage Advisory
+    runs-on: ubuntu-latest
+    # Only run on specific triggers
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'workflow_call' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@sage')) ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/sage')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@sage'))
+    outputs:
+      response: ${{ steps.sage.outputs.response }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4 # v4
+        with:
+          fetch-depth: 0  # Full history for context
+
+      - name: Setup Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v4
+        with:
+          node-version: '20'
+
+      - name: Run Sage
+        id: sage
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_HOST: ${{ secrets.OLLAMA_API_URL || vars.OLLAMA_HOST || 'https://ollama.com' }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          OLLAMA_MODEL: ${{ secrets.OLLAMA_MODEL || 'glm-4.6:cloud' }}
+          CURSOR_SESSION_TOKEN: ${{ secrets.CURSOR_SESSION_TOKEN }}
+          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+          # Event context
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          REPO_FULL_NAME: ${{ github.repository }}
+          # Workflow inputs
+          INPUT_QUERY: ${{ inputs.query }}
+          INPUT_CONTEXT_REPO: ${{ inputs.context_repo }}
+          INPUT_CONTEXT_ISSUE: ${{ inputs.context_issue }}
+        run: node scripts/ecosystem-sage.mjs
+
+      - name: Post Response
+        if: github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f sage-response.md ]; then
+            RESPONSE=$(cat sage-response.md)
+            if [ "${{ github.event_name }}" == "issue_comment" ]; then
+              gh issue comment ${{ github.event.issue.number }} --body "$RESPONSE"
+            else
+              gh pr comment ${{ github.event.pull_request.number }} --body "$RESPONSE"
+            fi
+          fi
