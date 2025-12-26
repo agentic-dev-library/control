@@ -1,29 +1,75 @@
-/* Custom CSS for Sphinx documentation */
-/* Synced from jbcom-control-center */
+/* 
+  jbcom Sphinx Theme - Base
+  Derived from jbcom Design System
+*/
 
-/* Improve code block readability */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+    --bg-default: #0a0f1a;
+    --bg-paper: #111827;
+    --primary: #06b6d4;
+    --secondary: #3b82f6;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --font-heading: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* Sphinx RTD Theme Overrides */
+.wy-nav-side {
+    background: var(--bg-paper) !important;
+}
+
+.wy-side-nav-search {
+    background: var(--bg-default) !important;
+}
+
+.wy-nav-content-wrap {
+    background: var(--bg-default) !important;
+    color: var(--text-secondary);
+}
+
+.wy-body-for-nav {
+    background: var(--bg-default) !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading) !important;
+    color: var(--text-primary) !important;
+    font-weight: 700 !important;
+}
+
+body {
+    font-family: var(--font-body) !important;
+    color: var(--text-secondary) !important;
+}
+
+code, pre {
+    font-family: var(--font-mono) !important;
+}
+
 .highlight {
-    background: #f8f8f8;
-    border-radius: 4px;
+    background: var(--bg-paper) !important;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
 }
 
-/* Better table styling */
-table.docutils {
-    border-collapse: collapse;
-    width: 100%;
+a {
+    color: var(--primary) !important;
 }
 
-table.docutils td, table.docutils th {
-    padding: 8px 12px;
-    border: 1px solid #e1e4e5;
+a:hover {
+    color: #22d3ee !important;
 }
 
-/* Improve sidebar navigation */
-.wy-nav-content {
-    max-width: 900px;
+/* Agentic Purple Override */
+:root {
+    --primary: #8b5cf6;
 }
 
-/* Better admonition styling */
-.admonition {
-    border-radius: 4px;
+.wy-side-nav-search {
+    background: #2e1065 !important;
 }
+
