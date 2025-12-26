@@ -1,0 +1,71 @@
+name: 'Agentic CI Resolution'
+description: 'Automatically analyze and resolve CI failures and PR feedback'
+author: 'Jon Bogaty'
+branding:
+  icon: 'zap'
+  color: 'green'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  pr_number:
+    description: 'PR number to resolve (defaults to current PR)'
+    required: false
+  repo:
+    description: 'Repository in owner/repo format'
+    required: false
+  iterations:
+    description: 'Maximum number of resolution iterations'
+    required: false
+    default: '5'
+  jules_api_key:
+    description: 'Jules API key'
+    required: false
+  workflow_run_id:
+    description: 'Workflow run ID'
+    required: false
+  branch:
+    description: 'Branch name'
+    required: false
+  repository:
+    description: 'Repository name'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Run CI Resolution
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        JULES_API_KEY: ${{ inputs.jules_api_key }}
+        GOOGLE_JULES_API_KEY: ${{ inputs.jules_api_key }}
+      run: |
+        PR_NUM="${{ inputs.pr_number }}"
+        if [ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ]; then
+          if [ -f "$GITHUB_EVENT_PATH" ]; then
+            PR_NUM=$(jq -r '.pull_request.number // .number // empty' "$GITHUB_EVENT_PATH")
+          fi
+        fi
+        
+        if [ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ]; then
+          echo "❌ Error: Could not determine PR number." >&2
+          exit 1
+        fi
+        
+        REPO="${{ inputs.repo }}"
+        if [ -z "$REPO" ]; then
+          REPO="$GITHUB_REPOSITORY"
+        fi
+        
+        # Install peer dependencies first
+        npm install -g agentic-control@1.1.0 @ai-sdk/anthropic @ai-sdk/google ai-sdk-ollama @ai-sdk/openai
+        
+        agentic triage fix "$PR_NUM" --repo "$REPO" --iterations "${{ inputs.iterations }}"
