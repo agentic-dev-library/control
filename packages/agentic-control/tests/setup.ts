@@ -5,8 +5,8 @@
  * and mocking utilities - demonstrating dogfooding of the testing plugin.
  */
 
+import { withTestEnv } from '@agentic-dev-library/vitest-control/fixtures';
 import { afterEach, beforeEach } from 'vitest';
-import { withTestEnv } from 'vitest-agentic-control/fixtures';
 
 // Global test environment cleanup function
 let envCleanup: (() => void) | null = null;

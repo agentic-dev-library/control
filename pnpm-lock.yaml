@@ -47,6 +47,9 @@ importers:
 
   packages/agentic-control:
     dependencies:
+      '@agentic-dev-library/triage':
+        specifier: ^1.1.0
+        version: 1.1.0(hono@4.11.1)
       '@ai-sdk/azure':
         specifier: ^2.0.78
         version: 2.0.90(zod@4.2.1)
@@ -93,6 +96,9 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
     devDependencies:
+      '@agentic-dev-library/vitest-control':
+        specifier: workspace:*
+        version: link:../vitest-agentic-control
       '@ai-sdk/anthropic':
         specifier: ^3.0.1
         version: 3.0.1(zod@4.2.1)
@@ -108,9 +114,6 @@ importers:
       vitest:
         specifier: ^4.0.14
         version: 4.0.16(@opentelemetry/api@1.9.0)(@types/node@22.19.3)(tsx@4.21.0)(yaml@2.8.2)
-      vitest-agentic-control:
-        specifier: workspace:*
-        version: link:../vitest-agentic-control
 
   packages/providers:
     dependencies:
@@ -147,6 +150,11 @@ packages:
 
   '@actions/io@2.0.0':
     resolution: {integrity: sha512-Jv33IN09XLO+0HS79aaODsvIRyduiF7NY/F6LYeK5oeUmrsz7aFdRphQjFoESF4jS7lMauDOttKALcpapVDIAg==}
+
+  '@agentic-dev-library/triage@1.1.0':
+    resolution: {integrity: sha512-ufD5+EcTwQrN6LSIRwQPCIhOOsNQNn5B7g7XDpZaPzMy9ChBGLNXiA0XzGvHKht0Ia4dNf/z6xWzJJEho2782w==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@agentic/triage@https://codeload.github.com/agentic-dev-library/triage/tar.gz/1a507f900b4aae96eea51f85e6c68ba4b72b54a8':
     resolution: {tarball: https://codeload.github.com/agentic-dev-library/triage/tar.gz/1a507f900b4aae96eea51f85e6c68ba4b72b54a8}
@@ -461,6 +469,11 @@ packages:
   '@gerrit0/mini-shiki@3.20.0':
     resolution: {integrity: sha512-Wa57i+bMpK6PGJZ1f2myxo3iO+K/kZikcyvH8NIqNNZhQUbDav7V9LQmWOXhf946mz5c1NZ19WMsGYiDKTryzQ==}
 
+  '@graphql-typed-document-node/core@3.2.0':
+    resolution: {integrity: sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==}
+    peerDependencies:
+      graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
   '@hono/node-server@1.19.7':
     resolution: {integrity: sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw==}
     engines: {node: '>=18.14.1'}
@@ -624,6 +637,10 @@ packages:
 
   '@kwsites/promise-deferred@1.1.1':
     resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
+
+  '@linear/sdk@68.1.0':
+    resolution: {integrity: sha512-I6MMle0hXR8SC2KVaDHt+vQvGDSQQwhfA9eq17hAL1y1Sf+7aGpaCXzMx3S4wcD9fLS5LZxd7aY8nAiTYHjoEg==}
+    engines: {node: '>=18.x'}
 
   '@modelcontextprotocol/sdk@1.25.1':
     resolution: {integrity: sha512-yO28oVFFC7EBoiKdAn+VqRm+plcfv4v0xp6osG/VsCB0NlPZWi87ajbCZZ8f/RvOFLEu7//rSRmuZZ7lMoe3gQ==}
@@ -1562,6 +1579,10 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  graphql@15.10.1:
+    resolution: {integrity: sha512-BL/Xd/T9baO6NFzoMpiMD7YUZ62R6viR5tp/MULVEnbYJXZA//kRNW7J0j1w/wXArgL0sCxhDfK5dczSKn3+cg==}
+    engines: {node: '>= 10.x'}
 
   handlebars@4.7.8:
     resolution: {integrity: sha512-vafaFqs8MZkRrSX7sFVUdo3ap/eNiLnb4IakshzvP56X5Nr1iGKAIqdX6tMlm6HcNRIkr6AxO5jFEoJzzpT8aQ==}
@@ -2791,6 +2812,26 @@ snapshots:
 
   '@actions/io@2.0.0': {}
 
+  '@agentic-dev-library/triage@1.1.0(hono@4.11.1)':
+    dependencies:
+      '@actions/core': 2.0.1
+      '@ai-sdk/mcp': 1.0.1(zod@4.2.1)
+      '@linear/sdk': 68.1.0
+      '@modelcontextprotocol/sdk': 1.25.1(hono@4.11.1)(zod@4.2.1)
+      '@playwright/mcp': 0.0.53
+      ai: 6.0.3(zod@4.2.1)
+      ai-sdk-ollama: 3.0.0(ai@6.0.3(zod@4.2.1))(zod@4.2.1)
+      commander: 14.0.2
+      glob: 13.0.0
+      octokit: 5.0.5
+      ollama: 0.6.3
+      picocolors: 1.1.1
+      zod: 4.2.1
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - supports-color
+
   '@agentic/triage@https://codeload.github.com/agentic-dev-library/triage/tar.gz/1a507f900b4aae96eea51f85e6c68ba4b72b54a8':
     dependencies:
       '@actions/core': 2.0.1
@@ -3019,6 +3060,10 @@ snapshots:
       '@shikijs/types': 3.20.0
       '@shikijs/vscode-textmate': 10.0.2
 
+  '@graphql-typed-document-node/core@3.2.0(graphql@15.10.1)':
+    dependencies:
+      graphql: 15.10.1
+
   '@hono/node-server@1.19.7(hono@4.11.1)':
     dependencies:
       hono: 4.11.1
@@ -3164,6 +3209,11 @@ snapshots:
       - supports-color
 
   '@kwsites/promise-deferred@1.1.1': {}
+
+  '@linear/sdk@68.1.0':
+    dependencies:
+      '@graphql-typed-document-node/core': 3.2.0(graphql@15.10.1)
+      graphql: 15.10.1
 
   '@modelcontextprotocol/sdk@1.25.1(hono@4.11.1)(zod@4.2.1)':
     dependencies:
@@ -4221,6 +4271,8 @@ snapshots:
   graceful-fs@4.2.10: {}
 
   graceful-fs@4.2.11: {}
+
+  graphql@15.10.1: {}
 
   handlebars@4.7.8:
     dependencies:

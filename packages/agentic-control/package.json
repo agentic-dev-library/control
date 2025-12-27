@@ -1,7 +1,7 @@
 {
   "name": "@agentic-dev-library/control",
   "version": "1.2.0",
-  "description": "Unified AI agent fleet management, triage, and orchestration toolkit for control centers",
+  "description": "Orchestration layer for AI agent fleet management - multi-agent routing, CI resolution, and GitHub Marketplace actions",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,6 +13,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./orchestrators": {
+      "types": "./dist/orchestrators/index.d.ts",
+      "import": "./dist/orchestrators/index.js"
+    },
+    "./pipelines": {
+      "types": "./dist/pipelines/index.d.ts",
+      "import": "./dist/pipelines/index.js"
+    },
+    "./actions": {
+      "types": "./dist/actions/index.d.ts",
+      "import": "./dist/actions/index.js"
     },
     "./fleet": {
       "types": "./dist/fleet/index.d.ts",
@@ -64,6 +76,7 @@
     "@inquirer/prompts": "8.1.0",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@octokit/rest": "^22.0.1",
+    "@agentic-dev-library/triage": "^1.1.0",
     "ai": "^6.0.3",
     "commander": "^14.0.2",
     "cosmiconfig": "9.0.0",
