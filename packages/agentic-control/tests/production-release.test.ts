@@ -587,11 +587,13 @@ describe('Property 7: Multi-architecture support', () => {
    * linux/amd64 and linux/arm64 platforms.
    */
   it('should configure multi-architecture builds', async () => {
-    const ciWorkflow = await import('node:fs').then((fs) =>
-      fs.promises.readFile(join(WORKSPACE_ROOT, '.github/workflows/ci.yml'), 'utf-8')
+    // Multi-arch builds are in CD workflow (releases), not CI (PRs)
+    // CI uses single-arch to avoid QEMU memory issues on runners
+    const cdWorkflow = await import('node:fs').then((fs) =>
+      fs.promises.readFile(join(WORKSPACE_ROOT, '.github/workflows/cd.yml'), 'utf-8')
     );
 
-    expect(ciWorkflow).toContain('platforms: linux/amd64,linux/arm64');
+    expect(cdWorkflow).toContain('platforms: linux/amd64,linux/arm64');
   });
 });
 describe('Docker non-root user example', () => {
