@@ -6,7 +6,7 @@
  */
 
 import { afterEach, beforeEach } from 'vitest';
-import { withTestEnv } from 'vitest-agentic-control/fixtures';
+import { withTestEnv } from '@agentic-dev-library/vitest-control/fixtures';
 
 // Global test environment cleanup function
 let envCleanup: (() => void) | null = null;
