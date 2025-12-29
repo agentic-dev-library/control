@@ -1061,7 +1061,12 @@ rolesCmd
 
       console.log('🔮 Sage is thinking...\n');
 
-      const result = await executeSageRole(query, model as Parameters<typeof executeSageRole>[1]);
+      const result = await executeSageRole(
+        query,
+        model as Parameters<typeof executeSageRole>[1],
+        {},
+        role
+      );
 
       if (opts.json) {
         output(result, true);
@@ -1085,7 +1090,8 @@ rolesCmd
   .description('Find which role matches a trigger pattern')
   .argument('<pattern>', 'Trigger pattern (e.g., @sage, /cursor)')
   .action((pattern) => {
-    const role = findRoleByTrigger(pattern);
+    const config = getConfig();
+    const role = findRoleByTrigger(pattern, config.roles);
 
     if (role) {
       console.log(`✅ Matched: ${role.icon} ${role.name} (${role.id})`);

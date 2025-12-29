@@ -146,9 +146,10 @@ export async function executeRole(context: RoleExecutionContext): Promise<RoleEx
 export async function executeSageRole(
   query: string,
   model: LanguageModel,
-  context?: Partial<RoleExecutionContext>
+  context?: Partial<RoleExecutionContext>,
+  roleOverride?: RoleDefinition
 ): Promise<RoleExecutionResult> {
-  const role = getDefaultRole('sage');
+  const role = roleOverride ?? getDefaultRole('sage');
   if (!role) {
     return { success: false, error: 'Sage role not found' };
   }
