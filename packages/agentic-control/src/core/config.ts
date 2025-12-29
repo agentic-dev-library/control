@@ -29,10 +29,10 @@
  */
 
 import { cosmiconfigSync } from 'cosmiconfig';
+import type { RolesConfig } from '../roles/types.js';
 import { setTokenConfig } from './tokens.js';
 import type { TokenConfig } from './types.js';
 import { validateConfig } from './validation.js';
-import type { RolesConfig } from '../roles/types.js';
 
 // ============================================
 // Configuration Types
