@@ -6,7 +6,5 @@ jobs:
     uses: jbcom/control-center/.github/workflows/test-reusable.yml@main
     with:
       action: review
-      repository: agentic-dev-library/control
-      pr_number: 49
     secrets:
       CI_GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
