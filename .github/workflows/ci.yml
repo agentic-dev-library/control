@@ -1,159 +1,167 @@
-# CI Workflow - All actions pinned to exact SHAs
-# Security best practice: prevents supply chain attacks
-# Cost optimized: efficient caching and parallel execution
-
+# CI - Build, Lint, Test
+# Core quality gates - runs on every PR and push to main
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  detect-stack:
-    name: Detect Stack
-    runs-on: ubuntu-latest
-    outputs:
-      has_rust: ${{ steps.detect.outputs.has_rust }}
-      has_node: ${{ steps.detect.outputs.has_node }}
-      has_python: ${{ steps.detect.outputs.has_python }}
-      has_python_uv: ${{ steps.detect.outputs.has_python_uv }}
-      has_go: ${{ steps.detect.outputs.has_go }}
-      has_docs: ${{ steps.detect.outputs.has_docs }}
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          sparse-checkout: |
-            Cargo.toml
-            package.json
-            pyproject.toml
-            setup.py
-            requirements.txt
-            uv.lock
-            go.mod
-            docs
-          sparse-checkout-cone-mode: false
-      - name: Detect project type
-        id: detect
-        run: |
-          echo "has_rust=$([[ -f Cargo.toml ]] && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "has_node=$([[ -f package.json ]] && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "has_python=$([[ -f pyproject.toml || -f setup.py || -f requirements.txt ]] && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "has_python_uv=$([[ -f uv.lock ]] && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "has_go=$([[ -f go.mod ]] && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "has_docs=$([[ -d docs ]] && echo true || echo false)" >> $GITHUB_OUTPUT
-
-  rust:
-    name: Rust
-    needs: detect-stack
-    if: needs.detect-stack.outputs.has_rust == 'true'
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
-        with:
-          toolchain: stable
-          components: clippy, rustfmt
-      - uses: swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.7.8
-      - run: cargo build --release
-      - run: cargo test
-      - run: cargo clippy -- -D warnings
-      - run: cargo fmt -- --check
-
-  node:
-    name: Node.js
-    needs: detect-stack
-    if: needs.detect-stack.outputs.has_node == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
-        with:
-          version: 10
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - run: pnpm run lint || true
-      - run: pnpm run build || true
-      - run: pnpm test || true
-
-  python-uv:
-    name: Python (uv)
-    needs: detect-stack
-    if: needs.detect-stack.outputs.has_python_uv == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      - uses: pnpm/action-setup@v4
         with:
-          enable-cache: true
-      - run: uv sync --all-extras --dev
-      - run: uv run ruff check . || true
-      - run: uv run ruff format --check . || true
-      - run: uv run pytest || true
+          version: 9
 
-  python-pip:
-    name: Python (pip)
-    needs: detect-stack
-    if: needs.detect-stack.outputs.has_python == 'true' && needs.detect-stack.outputs.has_python_uv != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      - name: Install
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
         run: |
-          pip install ruff pytest
-          if [[ -f requirements.txt ]]; then pip install -r requirements.txt; fi
-          if [[ -f pyproject.toml ]]; then pip install -e ".[dev]" 2>/dev/null || pip install -e . 2>/dev/null || true; fi
-      - run: ruff check . || true
-      - run: pytest || true
+          STORE_PATH=$(pnpm store path --silent 2>/dev/null || true)
+          STORE_PATH="${STORE_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/pnpm/store}"
+          echo "store=$STORE_PATH" >> $GITHUB_OUTPUT
 
-  go:
-    name: Go
-    needs: detect-stack
-    if: needs.detect-stack.outputs.has_go == 'true'
+      - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.0
+        with:
+          path: ${{ steps.pnpm-cache.outputs.store }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml', 'package.json') }}
+          restore-keys: pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Lint and Format Check
+        run: pnpm run check
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: build-output
+          path: dist
+          retention-days: 1
+
+  test:
+    name: Tests
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          go-version: '1.22'
-      - run: go build -v ./...
-      - run: go test -v ./...
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-  docs-build:
-    name: Build & Sync Docs
-    needs: detect-stack
-    if: needs.detect-stack.outputs.has_docs == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Install dependencies
+        run: pnpm install
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: build-output
+          path: dist
+
+      - name: Run tests with coverage
+        run: pnpm run test:coverage
+
+      - name: Report Coveralls
+        uses: coverallsapp/github-action@v2
+
+      - name: Upload test results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: test-results
+          path: coverage/
+          retention-days: 7
+
+  release:
+    name: Release
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [build, test]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+      - uses: actions/checkout@v4 # v6.0.1
         with:
-          version: 10
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4 # v6.1.0
         with:
-          enable-cache: true
-      
-      - name: Build Docs
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v4 # v4.1.0
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: build-output
+          path: dist
+
+      - name: Git config
         run: |
-          if [ -f docs/Makefile ]; then
-            cd docs && make html
-          elif [ -f package.json ] && grep -q "build:docs" package.json; then
-            pnpm install --no-frozen-lockfile
-            pnpm run build:docs
-          elif [ -f uv.lock ]; then
-            uv sync
-            uv run sphinx-build -b html docs docs/_build/html 2>/dev/null || true
-          elif [ -f Cargo.toml ]; then
-            cargo doc --no-deps
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install python-semantic-release
+        run: pip install python-semantic-release
+
+      - name: Check if release needed
+        id: check
+        run: |
+          NEW_VERSION=$(semantic-release --noop version --print 2>/dev/null || true)
+          if [ -n "$NEW_VERSION" ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Release version
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: semantic-release version
+
+      - name: Publish to NPM
+        if: steps.check.outputs.should_release == 'true'
+        run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@c85c599104002394fd3f3576406e9036952705e3 # v2.2.1
+        with:
+          tag_name: v${{ steps.check.outputs.version }}
+          name: v${{ steps.check.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
