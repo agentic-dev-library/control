@@ -51,7 +51,7 @@ jobs:
       # Node.js (TypeDoc)
       - name: Setup Node
         if: steps.detect.outputs.type == 'nodejs'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
       - name: Build Node Docs
