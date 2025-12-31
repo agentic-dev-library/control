@@ -29,3 +29,30 @@ memory-bank/
 ! .cursor/Dockerfile
 ! .cursor/environment.json
 ! .cursor/mcp.json
+
+# Node.js
+node_modules/
+dist/
+coverage/
+.npm
+.pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+.venv/
+env/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Build
+build/
+bin/
+obj/
+out/
+target/
+
