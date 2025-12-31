@@ -113,11 +113,11 @@ jobs:
           DEFAULT_BRANCH: ${{ inputs.default_branch || github.event.repository.default_branch || 'main' }}
         run: |
           # Extract prompt from comment, removing the /jules command
-          PROMPT=$(echo "${COMMENT_BODY}" | sed -n 's|/jules ||p')
+          PROMPT=$(echo "${COMMENT_BODY}" | sed '1s|^[[:space:]]*/jules[[:space:]]*||')
 
-          if [[ -z "$PROMPT" ]]; then
-            echo "Jules command used without a prompt. Exiting."
-            exit 0
+          if [[ -z "$PROMPT" || "$PROMPT" == "$COMMENT_BODY" ]]; then
+            # If no change or empty, use a default
+            PROMPT="Fix issue #${TARGET_ISSUE}: ${ISSUE_TITLE}"
           fi
 
           RESPONSE=$(curl -s -X POST "https://jules.googleapis.com/v1alpha/sessions" \
@@ -154,11 +154,11 @@ jobs:
           GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
         run: |
           # Extract prompt from comment, removing the /cursor command
-          PROMPT=$(echo "${COMMENT_BODY}" | sed -n 's|/cursor ||p')
+          PROMPT=$(echo "${COMMENT_BODY}" | sed '1s|^[[:space:]]*/cursor[[:space:]]*||')
 
-          if [[ -z "$PROMPT" ]]; then
-            echo "Cursor command used without a prompt. Exiting."
-            exit 0
+          if [[ -z "$PROMPT" || "$PROMPT" == "$COMMENT_BODY" ]]; then
+            # If no change or empty, use a default
+            PROMPT="Fix issue #${TARGET_ISSUE}: ${ISSUE_TITLE}"
           fi
 
           RESPONSE=$(curl -s -X POST "https://api.cursor.com/v0/agents" \

@@ -27,11 +27,33 @@ node-compile-cache/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
+
+# Rust
+target/
+Cargo.lock
+
+# Node.js
+node_modules/
+dist/
+.npm
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # AI / Agents
 memory-bank/
-.cursor/
+# .cursor/ is managed below
 ! .cursor/rules/
+! .cursor/rules/*
 ! .cursor/Dockerfile
 ! .cursor/environment.json
 ! .cursor/mcp.json

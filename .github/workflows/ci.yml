@@ -1,5 +1,3 @@
-# CI - Build, Lint, Test
-# Core quality gates - runs on every PR and push to main
 name: CI
 
 on:
@@ -15,14 +13,19 @@ concurrency:
 permissions:
   contents: read
   packages: read
+  pull-requests: write
+  id-token: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  ci:
-    name: Build & Test
+  # ============================================================
+  # Node.js CI
+  # ============================================================
+  node-ci:
+    name: Node.js CI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +79,36 @@ jobs:
           path: packages/*/dist
           retention-days: 1
 
+  # ============================================================
+  # Python CI
+  # ============================================================
+  python-ci:
+    name: Python CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./python
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --extra tests
+
+      - name: Run tests
+        run: uv run pytest tests/ -v
+
+  # ============================================================
+  # Docker Build
+  # ============================================================
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
@@ -104,34 +137,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  python-tests:
-    name: Python Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./python
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "latest"
-          enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.13
-
-      - name: Install dependencies
-        run: uv sync --extra tests
-
-      - name: Run tests
-        run: uv run pytest tests/ -v
-
+  # ============================================================
+  # Release
+  # ============================================================
   release:
     name: Release
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: ci
+    needs: [node-ci, python-ci]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -164,36 +176,17 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Install python-semantic-release
-        run: pip install python-semantic-release
-
-      - name: Check if release needed
-        id: check
-        run: |
-          NEW_VERSION=$(semantic-release --noop version --print 2>/dev/null || true)
-          if [ -n "$NEW_VERSION" ]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Release version
-        if: steps.check.outputs.should_release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: semantic-release version
-
-      - name: Publish to NPM
-        if: steps.check.outputs.should_release == 'true'
-        run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub Release
-        if: steps.check.outputs.should_release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.check.outputs.version }}
-          name: v${{ steps.check.outputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use semantic-release for Node packages
+          npx semantic-release
+          
+          # Use uv/semantic-release for Python if needed
+          if [ -d "python" ]; then
+            cd python
+            uv tool install python-semantic-release
+            semantic-release version
+            semantic-release publish
+          fi
