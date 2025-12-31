@@ -1,167 +1,104 @@
-# Agent Instructions for agentic-control
+# Agent Instructions for agentic-dev-library
+
+> **CRITICAL**: Read this file completely before making ANY changes. This is the definitive guide for AI agents working on this organization's repositories.
 
 ## Overview
 
-Unified AI agent fleet management with TypeScript core and Python CrewAI companion.
+You are working within the **agentic-dev-library** ecosystem. This organization focuses on framework-agnostic AI orchestration, agent fleet management, and automated triage.
 
-**agentic-control** consumes triage primitives from **[agentic-triage](https://github.com/jbdevprimary/agentic-triage)**.
-
-## Using agentic-triage Tools
-
-```typescript
-import { getTriageTools, getIssueTools, getReviewTools } from 'agentic-triage';
-import { generateText } from 'ai';
-
-// In agent configurations
-const triageAgent = {
-  tools: getTriageTools(),
-  systemPrompt: 'You are a triage specialist...',
-};
-
-// Or selective import
-const issueAgent = {
-  tools: getIssueTools(),
-  systemPrompt: 'You manage issues...',
-};
-```
-
-## Before Starting
+## Critical: GitHub Authentication
 
 ```bash
-cat memory-bank/activeContext.md
+# ALWAYS use GITHUB_JBCOM_TOKEN for organization repos - NEVER plain GITHUB_TOKEN
+GH_TOKEN="$GITHUB_JBCOM_TOKEN" gh <command>
 ```
 
-## TypeScript Development
+## Tech Stack Standards
 
+| Aspect | Standard |
+|--------|----------|
+| **Python** | uv, ruff, mypy, pytest, Python 3.11+ |
+| **Node.js** | pnpm, biome, vitest, Node 22+ |
+| **Rust** | cargo, clippy, fmt |
+| **Docs** | Starlight (Astro) for main site, Markdown for internal |
+
+## Development Workflows
+
+### Python
 ```bash
-# Install dependencies
+uv sync --all-extras
+uv run pytest
+uvx ruff check --fix .
+uvx ruff format .
+```
+
+### Node.js
+```bash
 pnpm install
-
-# Build
-pnpm run build
-
-# Test
+pnpm run check
 pnpm run test
-
-# Format with Prettier
-pnpm run format
-
-# Lint
-pnpm run lint
 ```
 
-## Python Development
-
+### Rust
 ```bash
-cd python
-
-# Install dependencies
-uv sync --extra tests
-
-# Run tests
-uv run pytest tests/ -v
-
-# Lint and format
-uvx ruff check --fix src/ tests/
-uvx ruff format src/ tests/
-```
-
-## MCP Server
-
-TypeScript provides MCP server capabilities for CrewAI Python agents.
-
-```bash
-# Start TypeScript MCP server (for CrewAI)
-npx agentic mcp
-
-# Start Python CrewAI MCP server
-crew-mcp
-```
-
-## Tool Architecture
-
-```
-┌────────────────────────────────────────────────────────────┐
-│                    agentic-control                          │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                   AI Agent Fleet                     │   │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────┐ │   │
-│  │  │ Triage  │  │ Develop │  │ Review  │  │ Deploy │ │   │
-│  │  │ Agent   │  │ Agent   │  │ Agent   │  │ Agent  │ │   │
-│  │  └────┬────┘  └────┬────┘  └────┬────┘  └────────┘ │   │
-│  │       │            │            │                   │   │
-│  │       └────────────┴────────────┘                   │   │
-│  │                    │                                 │   │
-│  │                    ▼                                 │   │
-│  │       ┌────────────────────────────┐                │   │
-│  │       │ getTriageTools() from      │                │   │
-│  │       │ @strata/triage             │                │   │
-│  │       └────────────────────────────┘                │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                           ▲                                 │
-│                           │ npm dependency                  │
-└───────────────────────────┼─────────────────────────────────┘
-                            │
-                            ▼
-            ┌───────────────────────────────┐
-            │        agentic-triage         │
-            │  (Triage tool primitives)     │
-            └───────────────────────────────┘
+cargo check
+cargo test
+cargo clippy
+cargo fmt
 ```
 
 ## Commit Messages
 
-Use conventional commits:
-- `feat(fleet): new fleet feature` → minor
-- `feat(crew): Python crew feature` → minor
-- `fix(triage): bug fix` → patch
+Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-## Architecture
+| Prefix | When |
+|--------|------|
+| `feat(scope):` | New feature |
+| `fix(scope):` | Bug fix |
+| `docs:` | Documentation only |
+| `refactor(scope):` | Code change (no behavior change) |
+| `test:` | Adding/updating tests |
+| `chore:` | Maintenance, deps |
 
-- `src/` - TypeScript source (fleet, triage, handoff, GitHub)
-- `python/src/crew_agents/` - Python CrewAI agents
-- Both share config patterns and MCP integration
+## Documentation Branding
 
-## Related
+All documentation must follow the **jbcom dark theme** design system.
+- Primary Cyan: `#06b6d4`
+- Background: `#0a0f1a`
+- Fonts: Space Grotesk (Headings), Inter (Body), JetBrains Mono (Code)
 
-- [agentic-triage](https://github.com/jbdevprimary/agentic-triage) - Triage tool primitives (consumed by this project)
-- [agentic-crew](https://github.com/jbdevprimary/agentic-crew) - Multi-agent orchestration
+## Memory Bank Protocol
 
-## Provider Implementations (NEW)
+Every repository uses the **Memory Bank** pattern for session continuity.
 
-### @agentic/providers Package
+| File | Purpose |
+|------|---------|
+| `memory-bank/activeContext.md` | Current state and focus |
+| `memory-bank/progress.md` | Session-by-session log |
 
-Provider implementations for @agentic/triage primitives:
+**Session End Protocol**:
+1. Update `memory-bank/activeContext.md` with what was completed.
+2. Update `memory-bank/progress.md` with the new session entry.
+3. Commit memory bank changes with `docs: update memory bank`.
 
-| Provider | File | Cost | Use Case |
-|----------|------|------|----------|
-| Ollama | `ollama.ts` | Free | Trivial/simple tasks |
-| Jules | `jules.ts` | Free tier | Complex async tasks |
-| Cursor | `cursor.ts` | $$$ | Expert-level, last resort |
+## Agent Autonomy Policy
 
-```typescript
-import { createOllamaAgent, createJulesAgent } from '@agentic/providers';
+### YOU HAVE FULL AUTONOMY
 
-const registry = new AgentRegistry()
-  .register(createOllamaAgent('ollama', { url: 'http://localhost:11434' }))
-  .register(createJulesAgent('jules', { apiKey: process.env.JULES_API_KEY }));
-```
+When assigned to a PR or issue, you are **explicitly authorized** to:
 
-### Merge Queue Action
+1. **PUSH** - `git push` to update PRs.
+2. **REBASE** - Rebase onto main/master to resolve conflicts.
+3. **FIX** - Make any changes needed to pass CI checks.
+4. **MERGE** - Merge PRs using squash merge when CI is green.
+5. **CREATE** - Create new branches, files, and PRs as needed.
 
-Cross-organization merge queue via GitHub Issue:
+### DO NOT ASK FOR PERMISSION
 
-```yaml
-- uses: agentic-dev-library/control/actions/merge-queue@v1
-  with:
-    command: process  # add, remove, process, refresh, status
-    queue-repo: my-org/control-center
-    github-token: ${{ secrets.CROSS_ORG_TOKEN }}
-```
+- You do NOT need to ask before pushing.
+- You do NOT need to ask before merging.
+- You do NOT need to ask before force-pushing.
+- Execute immediately when given instructions.
 
-Features:
-- Priority-based ordering
-- Cross-organization support
-- No Team subscription required
-- Observable state via GitHub Issue
+When you see `/jules` or `/cursor` followed by instructions, execute them immediately.
+This means: Do it now. Don't ask. You have permission.

@@ -1,0 +1,50 @@
+name: Jules Completion Handler
+
+# This workflow acts as a webhook handler for completed Jules sessions.
+# It listens for a `repository_dispatch` event, which can be triggered
+# by an external service (like a Google Cloud Function) when a Jules
+# session finishes.
+
+on:
+  repository_dispatch:
+    types: [jules-session-complete]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  handle-completion:
+    name: Handle Jules Session Completion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post Completion Comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SESSION_ID: ${{ github.event.client_payload.session_id }}
+          OUTCOME: ${{ github.event.client_payload.outcome }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          ISSUE_NUMBER: ${{ github.event.client_payload.issue_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -eo pipefail
+
+          # Construct the comment body
+          COMMENT_BODY="###  Jules Session Complete
+
+          **Session ID:** \`${SESSION_ID}\`
+          **Outcome:** ${OUTCOME}
+
+          "
+
+          if [[ -n "${PR_NUMBER}" ]]; then
+            # Comment on PR
+            gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body "$COMMENT_BODY"
+          elif [[ -n "${ISSUE_NUMBER}" ]]; then
+            # Comment on Issue
+            gh issue comment "${ISSUE_NUMBER}" --repo "${REPO}" --body "$COMMENT_BODY"
+          else
+            echo "Error: No PR or issue number provided in the payload."
+            exit 1
+          fi
