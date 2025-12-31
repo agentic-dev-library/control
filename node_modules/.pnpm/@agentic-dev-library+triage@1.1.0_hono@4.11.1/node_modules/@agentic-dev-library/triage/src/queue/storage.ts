@@ -1,0 +1,11 @@
+/**
+ * Queue Storage
+ *
+ * Re-exports storage interfaces and implementations from ../storage
+ * for backward compatibility.
+ *
+ * @deprecated Import from '../storage/index.js' instead
+ */
+
+export type { QueueStorage } from '../storage/interface.js';
+export { MemoryStorage } from '../storage/memory.js';

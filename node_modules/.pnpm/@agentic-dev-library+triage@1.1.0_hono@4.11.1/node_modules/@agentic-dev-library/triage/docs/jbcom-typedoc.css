@@ -1,0 +1,114 @@
+/* jbcom TypeDoc Branding - Dark Theme */
+/* Applied to @agentic-dev-library/triage documentation */
+
+:root {
+    /* jbcom Color Palette */
+    --jbcom-background: #0a0f1a;
+    --jbcom-surface: #111827;
+    --jbcom-primary: #06b6d4;
+    --jbcom-secondary: #3b82f6;
+    --jbcom-text-primary: #f1f5f9;
+    --jbcom-text-secondary: #94a3b8;
+    --jbcom-success: #10b981;
+    --jbcom-warning: #f59e0b;
+    --jbcom-error: #ef4444;
+
+    /* Override TypeDoc defaults */
+    --color-background: var(--jbcom-background);
+    --color-background-secondary: var(--jbcom-surface);
+    --color-text: var(--jbcom-text-primary);
+    --color-text-aside: var(--jbcom-text-secondary);
+    --color-link: var(--jbcom-primary);
+    --color-ts-function: var(--jbcom-secondary);
+    --color-ts-interface: var(--jbcom-success);
+}
+
+/* Typography - jbcom Standards */
+body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--jbcom-background);
+    color: var(--jbcom-text-primary);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-weight: 600;
+    color: var(--jbcom-text-primary);
+}
+
+code,
+pre {
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+}
+
+/* Links */
+a {
+    color: var(--jbcom-primary);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--jbcom-secondary);
+    text-decoration: underline;
+}
+
+/* Code blocks */
+pre {
+    background-color: var(--jbcom-surface);
+    border: 1px solid rgba(6, 182, 212, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+code {
+    background-color: var(--jbcom-surface);
+    color: var(--jbcom-primary);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+}
+
+/* Navigation */
+.tsd-navigation {
+    background-color: var(--jbcom-surface);
+}
+
+.tsd-navigation a {
+    color: var(--jbcom-text-secondary);
+}
+
+.tsd-navigation a:hover,
+.tsd-navigation a.current {
+    color: var(--jbcom-primary);
+}
+
+/* Signature highlighting */
+.tsd-signature {
+    background-color: var(--jbcom-surface);
+    border-left: 4px solid var(--jbcom-primary);
+}
+
+/* Member items */
+.tsd-panel {
+    background-color: var(--jbcom-surface);
+    border: 1px solid rgba(6, 182, 212, 0.1);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+/* Accessibility - Focus states */
+a:focus,
+button:focus {
+    outline: 2px solid var(--jbcom-primary);
+    outline-offset: 2px;
+}
+
+/* Brand header */
+.tsd-page-title h1::before {
+    content: "⚡ ";
+    color: var(--jbcom-primary);
+}

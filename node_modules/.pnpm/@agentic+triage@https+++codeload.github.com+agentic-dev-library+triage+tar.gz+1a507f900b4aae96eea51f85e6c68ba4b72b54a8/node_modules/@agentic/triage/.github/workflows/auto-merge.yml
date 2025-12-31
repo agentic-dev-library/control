@@ -1,0 +1,191 @@
+name: Auto Merge
+
+# Automatically merge PRs from trusted sources:
+# 1. Dependabot minor/patch updates (not major)
+# 2. Control center sync PRs (labeled with 'sync')
+# 3. Nightly improvement PRs (labeled with 'nightly') - when AI approved
+
+on:
+  pull_request_target:
+    types: [opened, labeled, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto Merge Trusted PRs
+    runs-on: ubuntu-latest
+
+    # Run for Dependabot, sync PRs, nightly PRs, or when a review is submitted
+    if: |
+      github.actor == 'dependabot[bot]' ||
+      contains(github.event.pull_request.labels.*.name, 'sync') ||
+      contains(github.event.pull_request.labels.*.name, 'nightly') ||
+      github.event_name == 'pull_request_review'
+
+    steps:
+      # actions/checkout v6.0.1 (pinned for security)
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+
+      - name: Check if auto-merge eligible
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_ACTOR: ${{ github.actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+        run: |
+          echo "Checking PR #$PR_NUMBER for auto-merge eligibility..."
+          echo "Actor: $PR_ACTOR"
+          echo "Title: $PR_TITLE"
+          echo "Event: $EVENT_NAME"
+
+          ELIGIBLE="false"
+          REASON=""
+
+          # Get PR labels
+          LABELS=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' 2>/dev/null || echo "")
+          
+          # Check if this is a Dependabot PR
+          if [[ "$PR_ACTOR" == "dependabot[bot]" ]]; then
+            # Extract major versions from PR title
+            FROM_MAJOR=$(echo "$PR_TITLE" | grep -oiE 'from [0-9]+' | head -1 | grep -oE '[0-9]+')
+            TO_MAJOR=$(echo "$PR_TITLE" | grep -oiE 'to [0-9]+' | head -1 | grep -oE '[0-9]+')
+            
+            echo "Detected versions: from=$FROM_MAJOR to=$TO_MAJOR"
+            
+            if [[ -n "$FROM_MAJOR" && -n "$TO_MAJOR" && "$FROM_MAJOR" != "$TO_MAJOR" ]]; then
+              REASON="Major version update ($FROM_MAJOR → $TO_MAJOR) requires manual review"
+            elif [[ -n "$FROM_MAJOR" && -n "$TO_MAJOR" ]]; then
+              ELIGIBLE="true"
+              REASON="Dependabot minor/patch update (v$FROM_MAJOR.x)"
+            else
+              REASON="Could not parse version from title - manual review required"
+            fi
+          fi
+
+          # Check if this is a sync PR
+          if echo "$LABELS" | grep -q '^sync$'; then
+            ELIGIBLE="true"
+            REASON="Control center sync PR"
+          fi
+
+          # Check if this is a nightly improvement PR
+          if echo "$LABELS" | grep -q '^nightly$'; then
+            echo "🌙 Nightly improvement PR detected"
+            
+            # For nightly PRs, we need AI review approval
+            # Check for approving reviews from AI bots or any approved review
+            APPROVALS=$(gh pr reviews "$PR_NUMBER" --json author,state -q '[.[] | select(.state == "APPROVED")] | length' 2>/dev/null || echo "0")
+            
+            if [[ "$APPROVALS" -gt 0 ]]; then
+              ELIGIBLE="true"
+              REASON="Nightly improvement PR with $APPROVALS approval(s)"
+            else
+              # Check if this was triggered by an approval review
+              if [[ "$EVENT_NAME" == "pull_request_review" && "$REVIEW_STATE" == "approved" ]]; then
+                ELIGIBLE="true"
+                REASON="Nightly improvement PR - just approved"
+              else
+                REASON="Nightly improvement PR - awaiting AI review approval"
+              fi
+            fi
+          fi
+
+          echo "eligible=$ELIGIBLE" >> $GITHUB_OUTPUT
+          echo "reason=$REASON" >> $GITHUB_OUTPUT
+          
+          if [[ "$ELIGIBLE" == "true" ]]; then
+            echo "✅ Auto-merge eligible: $REASON"
+          else
+            echo "⏸️ Not auto-merging: $REASON"
+          fi
+
+      - name: Wait for CI checks
+        if: steps.check.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "Waiting for CI checks to complete..."
+          
+          # Wait up to 10 minutes for checks
+          MAX_WAIT=600
+          WAIT_INTERVAL=30
+          ELAPSED=0
+          
+          while [[ $ELAPSED -lt $MAX_WAIT ]]; do
+            # Get check status with error handling
+            if ! RAW_STATUS=$(gh pr checks "$PR_NUMBER" --json state -q '.[].state' 2>&1); then
+              echo "⚠️ Failed to fetch PR checks: $RAW_STATUS"
+              # Retry after interval
+              sleep $WAIT_INTERVAL
+              ELAPSED=$((ELAPSED + WAIT_INTERVAL))
+              continue
+            fi
+            
+            STATUS=$(echo "$RAW_STATUS" | sort -u)
+            
+            # Handle case where no CI checks are configured
+            if [[ -z "$STATUS" ]]; then
+              echo "ℹ️ No CI checks found for this PR"
+              echo "⏸️ Skipping auto-merge - manual verification required"
+              exit 1
+            fi
+            
+            # Check if any are still pending
+            if echo "$STATUS" | grep -qE 'PENDING|IN_PROGRESS|QUEUED'; then
+              echo "Checks still running... waiting ${WAIT_INTERVAL}s (${ELAPSED}s elapsed)"
+              sleep $WAIT_INTERVAL
+              ELAPSED=$((ELAPSED + WAIT_INTERVAL))
+            elif echo "$STATUS" | grep -q 'FAILURE'; then
+              echo "❌ CI checks failed - not auto-merging"
+              exit 1
+            else
+              echo "✅ All CI checks passed"
+              break
+            fi
+          done
+          
+          if [[ $ELAPSED -ge $MAX_WAIT ]]; then
+            echo "⚠️ Timeout waiting for CI checks"
+            exit 1
+          fi
+
+      - name: Enable auto-merge
+        if: steps.check.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REASON: ${{ steps.check.outputs.reason }}
+        run: |
+          echo "Enabling auto-merge for PR #$PR_NUMBER"
+          echo "Reason: $REASON"
+          
+          # Enable auto-merge with squash
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          
+          echo "✅ Auto-merge enabled"
+
+      - name: Add comment
+        if: steps.check.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REASON: ${{ steps.check.outputs.reason }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "🤖 **Auto-merge enabled**
+
+          This PR will be automatically merged once all CI checks pass.
+
+          **Reason:** $REASON
+
+          ---
+          *To disable auto-merge, run: \`gh pr merge --disable-auto\`*"

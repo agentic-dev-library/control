@@ -1,0 +1,634 @@
+name: Nightly Codebase Improvement
+
+# Continuous improvement loop:
+# 1. Update fixed nightly branch with improvements
+# 2. Create or update single tracking PR
+# 3. AI reviewers provide feedback
+# 4. When approved → auto-merge
+# 5. Next night → cycle repeats
+
+on:
+  schedule:
+    # Run at 2 AM UTC on weekdays
+    - cron: '0 2 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      focus:
+        description: "Focus area for improvement"
+        required: false
+        type: choice
+        options:
+          - all
+          - tests
+          - docs
+          - quality
+          - security
+        default: all
+      dry_run:
+        description: "Analyze only, don't update branch"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: read
+
+env:
+  # Fixed branch name - one per repo, continuously updated
+  NIGHTLY_BRANCH: nightly/improvements
+  # Configurable via repository variables
+  COVERAGE_TARGET: ${{ vars.COVERAGE_TARGET || '80' }}
+  # Coveralls integration
+  COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+
+jobs:
+  # ============================================
+  # ANALYZE - Get coverage data from Coveralls
+  # ============================================
+  analyze:
+    name: Analyze Codebase
+    runs-on: ubuntu-latest
+    outputs:
+      language: ${{ steps.detect.outputs.language }}
+      framework: ${{ steps.detect.outputs.framework }}
+      coverage_pct: ${{ steps.coveralls.outputs.percent }}
+      uncovered_files: ${{ steps.coveralls.outputs.uncovered_files }}
+      needs_tests: ${{ steps.coveralls.outputs.needs_tests }}
+      needs_docs: ${{ steps.docs.outputs.needs_docs }}
+      needs_security: ${{ steps.security.outputs.needs_security }}
+      improvement_needed: ${{ steps.summary.outputs.improvement_needed }}
+
+    steps:
+      # actions/checkout v6.0.1
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          fetch-depth: 0
+
+      - name: Detect language and framework
+        id: detect
+        run: |
+          # Detect primary language
+          if [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+            LANGUAGE="python"
+          elif [ -f "package.json" ]; then
+            if grep -q '"typescript"' package.json 2>/dev/null; then
+              LANGUAGE="typescript"
+            else
+              LANGUAGE="javascript"
+            fi
+          elif [ -f "go.mod" ]; then
+            LANGUAGE="go"
+          elif [ -f "Cargo.toml" ]; then
+            LANGUAGE="rust"
+          elif find . -maxdepth 2 -name "*.tf" -type f | head -1 | grep -q .; then
+            LANGUAGE="terraform"
+          else
+            LANGUAGE="unknown"
+          fi
+          echo "language=$LANGUAGE" >> $GITHUB_OUTPUT
+          
+          # Detect framework
+          FRAMEWORK="none"
+          if [ "$LANGUAGE" = "python" ]; then
+            if grep -qE "crewai|langchain|langgraph" pyproject.toml 2>/dev/null; then
+              FRAMEWORK="ai-agents"
+            elif grep -qE "fastapi|flask|django" pyproject.toml 2>/dev/null; then
+              FRAMEWORK="web"
+            fi
+          elif [ "$LANGUAGE" = "typescript" ] || [ "$LANGUAGE" = "javascript" ]; then
+            if grep -qE '"react"|"next"' package.json 2>/dev/null; then
+              FRAMEWORK="react"
+            elif grep -qE '"express"|"fastify"|"hono"' package.json 2>/dev/null; then
+              FRAMEWORK="node-api"
+            fi
+          fi
+          echo "framework=$FRAMEWORK" >> $GITHUB_OUTPUT
+          echo "📊 Language: $LANGUAGE, Framework: $FRAMEWORK"
+
+      - name: Get coverage data from Coveralls
+        id: coveralls
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          
+          # Try to get coverage from Coveralls API
+          echo "📊 Fetching coverage data from Coveralls..."
+          
+          COVERALLS_DATA=$(curl -s "https://coveralls.io/github/${REPO}.json" 2>/dev/null || echo "{}")
+          
+          # Extract coverage percentage
+          COVERAGE_PCT=$(echo "$COVERALLS_DATA" | jq -r '.covered_percent // 0' | cut -d. -f1)
+          if [ -z "$COVERAGE_PCT" ] || [ "$COVERAGE_PCT" = "null" ]; then
+            COVERAGE_PCT=0
+          fi
+          echo "percent=$COVERAGE_PCT" >> $GITHUB_OUTPUT
+          echo "📈 Coveralls coverage: ${COVERAGE_PCT}%"
+          
+          # Get list of files with low coverage from Coveralls
+          # This gives us targeted information about what needs tests
+          UNCOVERED_FILES=$(echo "$COVERALLS_DATA" | jq -r '
+            .source_files // [] | 
+            map(select(.covered_percent < 80)) | 
+            sort_by(.covered_percent) | 
+            .[0:10] | 
+            map(.name) | 
+            join(",")
+          ' 2>/dev/null || echo "")
+          echo "uncovered_files=$UNCOVERED_FILES" >> $GITHUB_OUTPUT
+          
+          if [ -n "$UNCOVERED_FILES" ] && [ "$UNCOVERED_FILES" != "null" ]; then
+            echo "📉 Low coverage files: $UNCOVERED_FILES"
+          fi
+          
+          # Determine if tests are needed
+          if [ "$COVERAGE_PCT" -lt "${{ env.COVERAGE_TARGET }}" ]; then
+            echo "needs_tests=true" >> $GITHUB_OUTPUT
+            echo "📉 Coverage ${COVERAGE_PCT}% below target ${{ env.COVERAGE_TARGET }}%"
+          else
+            echo "needs_tests=false" >> $GITHUB_OUTPUT
+            echo "✅ Coverage meets target"
+          fi
+
+      - name: Check documentation gaps
+        id: docs
+        run: |
+          NEEDS_DOCS="false"
+          LANGUAGE="${{ steps.detect.outputs.language }}"
+          
+          # Check for README
+          if [ ! -f "README.md" ]; then
+            NEEDS_DOCS="true"
+            echo "📝 Missing README.md"
+          fi
+          
+          # Check for missing docstrings/JSDoc
+          case "$LANGUAGE" in
+            python)
+              MISSING_DOCS=$(find . -name "*.py" -not -path "*/test*" -not -path "*/__pycache__/*" -not -path "*/.venv/*" \
+                -exec grep -L '"""' {} \; 2>/dev/null | wc -l)
+              [ "$MISSING_DOCS" -gt 3 ] && NEEDS_DOCS="true"
+              ;;
+            typescript|javascript)
+              MISSING_DOCS=$(find src -name "*.ts" -o -name "*.js" 2>/dev/null | head -10 | \
+                xargs grep -L '/\*\*' 2>/dev/null | wc -l || echo "0")
+              [ "$MISSING_DOCS" -gt 3 ] && NEEDS_DOCS="true"
+              ;;
+          esac
+          
+          echo "needs_docs=$NEEDS_DOCS" >> $GITHUB_OUTPUT
+
+      - name: Check security issues
+        id: security
+        run: |
+          NEEDS_SECURITY="false"
+          LANGUAGE="${{ steps.detect.outputs.language }}"
+          
+          case "$LANGUAGE" in
+            python)
+              # Check for hardcoded secrets patterns
+              if grep -rE "(password|secret|api_key)\s*=\s*['\"][^'\"]+['\"]" --include="*.py" . 2>/dev/null | grep -v test | head -1 | grep -q .; then
+                NEEDS_SECURITY="true"
+              fi
+              ;;
+            typescript|javascript)
+              # Check npm audit
+              if npm audit --json 2>/dev/null | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0' >/dev/null 2>&1; then
+                NEEDS_SECURITY="true"
+              fi
+              ;;
+          esac
+          
+          echo "needs_security=$NEEDS_SECURITY" >> $GITHUB_OUTPUT
+
+      - name: Summarize analysis
+        id: summary
+        run: |
+          NEEDS_TESTS="${{ steps.coveralls.outputs.needs_tests }}"
+          NEEDS_DOCS="${{ steps.docs.outputs.needs_docs }}"
+          NEEDS_SECURITY="${{ steps.security.outputs.needs_security }}"
+          FOCUS="${{ inputs.focus || 'all' }}"
+          
+          IMPROVEMENT_NEEDED="false"
+          
+          case "$FOCUS" in
+            all)
+              [ "$NEEDS_TESTS" = "true" ] || [ "$NEEDS_DOCS" = "true" ] || [ "$NEEDS_SECURITY" = "true" ] && IMPROVEMENT_NEEDED="true"
+              ;;
+            tests)
+              [ "$NEEDS_TESTS" = "true" ] && IMPROVEMENT_NEEDED="true"
+              ;;
+            docs)
+              [ "$NEEDS_DOCS" = "true" ] && IMPROVEMENT_NEEDED="true"
+              ;;
+            security)
+              [ "$NEEDS_SECURITY" = "true" ] && IMPROVEMENT_NEEDED="true"
+              ;;
+            quality)
+              IMPROVEMENT_NEEDED="true"
+              ;;
+          esac
+          
+          echo "improvement_needed=$IMPROVEMENT_NEEDED" >> $GITHUB_OUTPUT
+          
+          # Summary
+          echo "## 📊 Analysis Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Language | ${{ steps.detect.outputs.language }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coveralls Coverage | ${{ steps.coveralls.outputs.percent }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | ${{ env.COVERAGE_TARGET }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Needs Tests | $NEEDS_TESTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Needs Docs | $NEEDS_DOCS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Needs Security | $NEEDS_SECURITY |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Improvement Needed** | **$IMPROVEMENT_NEEDED** |" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # IMPROVE - Update the fixed nightly branch
+  # ============================================
+  improve:
+    name: Update Nightly Branch
+    needs: analyze
+    if: needs.analyze.outputs.improvement_needed == 'true' && inputs.dry_run != true
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.commit.outputs.has_changes }}
+      commit_sha: ${{ steps.commit.outputs.sha }}
+
+    steps:
+      # actions/checkout v6.0.1
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup nightly branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Check if nightly branch exists
+          if git ls-remote --exit-code --heads origin "${{ env.NIGHTLY_BRANCH }}" >/dev/null 2>&1; then
+            echo "📌 Updating existing nightly branch..."
+            git fetch origin "${{ env.NIGHTLY_BRANCH }}"
+            git checkout "${{ env.NIGHTLY_BRANCH }}"
+            # Rebase onto main to pick up any merged changes
+            git rebase origin/main || {
+              echo "⚠️ Rebase conflict - resetting to main"
+              git rebase --abort
+              git reset --hard origin/main
+            }
+          else
+            echo "🌱 Creating new nightly branch..."
+            git checkout -b "${{ env.NIGHTLY_BRANCH }}"
+          fi
+
+      - name: Setup language environment
+        run: |
+          LANGUAGE="${{ needs.analyze.outputs.language }}"
+          
+          case "$LANGUAGE" in
+            python)
+              python3 -m pip install --upgrade pip
+              pip install pytest pytest-cov ruff
+              if [ -f "pyproject.toml" ]; then
+                pip install -e ".[dev,test]" 2>/dev/null || pip install -e . 2>/dev/null || true
+              fi
+              ;;
+            typescript|javascript)
+              npm ci 2>/dev/null || npm install 2>/dev/null || true
+              ;;
+            go)
+              go mod download 2>/dev/null || true
+              ;;
+          esac
+
+      # ---- TEST IMPROVEMENTS (using Coveralls data) ----
+      - name: Improve test coverage
+        if: needs.analyze.outputs.needs_tests == 'true' && (inputs.focus == 'all' || inputs.focus == 'tests')
+        env:
+          UNCOVERED_FILES: ${{ needs.analyze.outputs.uncovered_files }}
+        run: |
+          LANGUAGE="${{ needs.analyze.outputs.language }}"
+          echo "🧪 Improving test coverage for $LANGUAGE..."
+          
+          # Use Coveralls data to target specific files
+          if [ -n "$UNCOVERED_FILES" ] && [ "$UNCOVERED_FILES" != "null" ]; then
+            echo "📊 Targeting files from Coveralls: $UNCOVERED_FILES"
+            TARGET_FILES="$UNCOVERED_FILES"
+          else
+            # Fallback to discovering files without tests
+            TARGET_FILES=""
+          fi
+          
+          case "$LANGUAGE" in
+            python)
+              mkdir -p tests
+              
+              # Generate test stubs for low-coverage files
+              if [ -n "$TARGET_FILES" ]; then
+                IFS=',' read -ra FILES <<< "$TARGET_FILES"
+                for src in "${FILES[@]}"; do
+                  if [ -f "$src" ]; then
+                    module_name=$(basename "$src" .py)
+                    test_file="tests/test_${module_name}.py"
+                    
+                    if [ ! -f "$test_file" ] && [ "$module_name" != "__init__" ]; then
+                      echo "Creating test for low-coverage file: $src"
+                      printf '"""Tests for %s module.\n\nGenerated by nightly-improve workflow.\nCoveralls shows this file needs more coverage.\n"""\nimport pytest\n\n\nclass Test%s:\n    """Test cases for %s."""\n\n    def test_placeholder(self):\n        """Placeholder - implement actual tests."""\n        # TODO: Add tests to improve coverage\n        assert True\n' "$module_name" "${module_name^}" "$module_name" > "$test_file"
+                    fi
+                  fi
+                done
+              else
+                # Fallback: find modules without any tests
+                for src in $(find . -name "*.py" -not -path "*/test*" -not -path "*/.venv/*" -not -name "conftest.py" -not -name "__init__.py" 2>/dev/null | head -10); do
+                  module_name=$(basename "$src" .py)
+                  test_file="tests/test_${module_name}.py"
+                  
+                  if [ ! -f "$test_file" ]; then
+                    echo "Creating test stub: $test_file"
+                    printf '"""Tests for %s module.\n\nGenerated by nightly-improve workflow.\n"""\nimport pytest\n\n\nclass Test%s:\n    """Test cases for %s."""\n\n    def test_placeholder(self):\n        """Placeholder - implement actual tests."""\n        assert True\n' "$module_name" "${module_name^}" "$module_name" > "$test_file"
+                  fi
+                done
+              fi
+              ;;
+              
+            typescript|javascript)
+              mkdir -p __tests__
+              
+              for src in $(find src -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -10); do
+                base_name=$(basename "$src" | sed 's/\.[^.]*$//')
+                test_file="__tests__/${base_name}.test.ts"
+                
+                if [ ! -f "$test_file" ]; then
+                  echo "Creating test stub: $test_file"
+                  printf '/**\n * Tests for %s\n * Generated by nightly-improve workflow.\n */\nimport { describe, it, expect } from '\''vitest'\'';\n\ndescribe('\''%s'\'', () => {\n  it('\''placeholder test'\'', () => {\n    expect(true).toBe(true);\n  });\n});\n' "$base_name" "$base_name" > "$test_file"
+                fi
+              done
+              ;;
+              
+            go)
+              for src in $(find . -name "*.go" -not -name "*_test.go" 2>/dev/null | head -10); do
+                test_file="${src%.go}_test.go"
+                pkg_name=$(head -1 "$src" | awk '{print $2}')
+                
+                if [ ! -f "$test_file" ] && [ -n "$pkg_name" ]; then
+                  echo "Creating test stub: $test_file"
+                  printf 'package %s\n\nimport "testing"\n\n// Generated by nightly-improve workflow\n\nfunc TestPlaceholder(t *testing.T) {\n\tt.Log("Placeholder test")\n}\n' "$pkg_name" > "$test_file"
+                fi
+              done
+              ;;
+          esac
+
+      # ---- DOCUMENTATION IMPROVEMENTS ----
+      - name: Improve documentation
+        if: needs.analyze.outputs.needs_docs == 'true' && (inputs.focus == 'all' || inputs.focus == 'docs')
+        run: |
+          echo "📝 Improving documentation..."
+          
+          if [ ! -f "README.md" ]; then
+            REPO_SHORT="${{ github.repository }}"
+            REPO_SHORT="${REPO_SHORT#*/}"
+            
+            printf '# %s\n\n> TODO: Add project description\n\n## Installation\n\n```bash\n# TODO: Add installation instructions\n```\n\n## Usage\n\n```bash\n# TODO: Add usage examples\n```\n\n## License\n\nSee [LICENSE](LICENSE) for details.\n' "$REPO_SHORT" > README.md
+          fi
+
+      # ---- QUALITY IMPROVEMENTS ----
+      - name: Improve code quality
+        if: inputs.focus == 'all' || inputs.focus == 'quality'
+        run: |
+          LANGUAGE="${{ needs.analyze.outputs.language }}"
+          echo "✨ Running code quality fixes..."
+          
+          case "$LANGUAGE" in
+            python)
+              ruff check --fix . 2>/dev/null || true
+              ruff format . 2>/dev/null || true
+              ;;
+            typescript|javascript)
+              npx eslint --fix . 2>/dev/null || true
+              npx prettier --write . 2>/dev/null || true
+              ;;
+            go)
+              gofmt -w . 2>/dev/null || true
+              ;;
+          esac
+
+      # ---- SECURITY IMPROVEMENTS ----
+      - name: Improve security
+        if: needs.analyze.outputs.needs_security == 'true' && (inputs.focus == 'all' || inputs.focus == 'security')
+        run: |
+          LANGUAGE="${{ needs.analyze.outputs.language }}"
+          echo "🔒 Applying security improvements..."
+          
+          case "$LANGUAGE" in
+            typescript|javascript)
+              npm audit fix 2>/dev/null || true
+              ;;
+            python)
+              if [ -f "requirements.txt" ]; then
+                pip install pip-audit 2>/dev/null || true
+                pip-audit --fix 2>/dev/null || true
+              fi
+              ;;
+          esac
+
+      - name: Commit and push changes
+        id: commit
+        run: |
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No changes to commit"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            
+            git add -A
+            git commit -m "chore: nightly improvements ($(date +%Y-%m-%d))
+            
+            Automated improvements:
+            - Language: ${{ needs.analyze.outputs.language }}
+            - Coveralls coverage: ${{ needs.analyze.outputs.coverage_pct }}%
+            - Focus: ${{ inputs.focus || 'all' }}
+            
+            Run: ${{ github.run_id }}"
+            
+            # Force push to update the fixed branch
+            git push origin "${{ env.NIGHTLY_BRANCH }}" --force-with-lease || git push origin "${{ env.NIGHTLY_BRANCH }}" --force
+            
+            echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+            echo "✅ Pushed to ${{ env.NIGHTLY_BRANCH }}"
+          fi
+
+  # ============================================
+  # PR - Create or update the single tracking PR
+  # ============================================
+  pr:
+    name: Create/Update PR
+    needs: [analyze, improve]
+    if: needs.improve.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      # actions/checkout v6.0.1
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          ref: ${{ env.NIGHTLY_BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or update PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANGUAGE: ${{ needs.analyze.outputs.language }}
+          COVERAGE: ${{ needs.analyze.outputs.coverage_pct }}
+          TARGET: ${{ env.COVERAGE_TARGET }}
+          FOCUS: ${{ inputs.focus || 'all' }}
+          NEEDS_TESTS: ${{ needs.analyze.outputs.needs_tests }}
+          NEEDS_DOCS: ${{ needs.analyze.outputs.needs_docs }}
+          NEEDS_SECURITY: ${{ needs.analyze.outputs.needs_security }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head "${{ env.NIGHTLY_BRANCH }}" --json number -q '.[0].number' 2>/dev/null || echo "")
+          
+          # Build PR body
+          PR_BODY="## 🌙 Nightly Codebase Improvements
+
+          This PR is continuously updated by the nightly improvement workflow.
+
+          ### 📊 Current Status
+          | Metric | Value |
+          |--------|-------|
+          | Language | ${LANGUAGE} |
+          | Coveralls Coverage | ${COVERAGE}% |
+          | Target Coverage | ${TARGET}% |
+          | Focus | ${FOCUS} |
+
+          ### 📈 Coverage Data
+          Coverage data sourced from [Coveralls](https://coveralls.io/github/${{ github.repository }}).
+
+          ### ✅ Improvements Included"
+          
+          [ "$NEEDS_TESTS" = "true" ] && PR_BODY="${PR_BODY}
+          - 🧪 Test stubs for low-coverage modules"
+          
+          [ "$NEEDS_DOCS" = "true" ] && PR_BODY="${PR_BODY}
+          - 📝 Documentation improvements"
+          
+          [ "$NEEDS_SECURITY" = "true" ] && PR_BODY="${PR_BODY}
+          - 🔒 Security fixes"
+          
+          PR_BODY="${PR_BODY}
+          - ✨ Code quality fixes
+
+          ### 🔄 How This Works
+          1. This branch is updated nightly with new improvements
+          2. AI reviewers automatically review changes
+          3. When approved → auto-merge triggers
+          4. Next night → cycle repeats
+
+          ### 📋 For Reviewers
+          - Fill in placeholder tests with real assertions
+          - Verify documentation accuracy
+          - Check for any unintended changes
+
+          ---
+          *Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')*
+          *[View workflow run](${RUN_URL})*"
+          
+          if [ -n "$EXISTING_PR" ]; then
+            echo "📝 Updating existing PR #${EXISTING_PR}..."
+            gh pr edit "$EXISTING_PR" --body "$PR_BODY"
+            
+            # Add comment about the update
+            gh pr comment "$EXISTING_PR" --body "🔄 **Nightly update** ($(date +%Y-%m-%d))
+
+            New improvements have been pushed to this branch.
+            
+            **Coverage:** ${COVERAGE}% (target: ${TARGET}%)
+            
+            Please review the latest changes.
+            
+            ---
+            *[Workflow run](${RUN_URL})*"
+            
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+            echo "✅ Updated PR #${EXISTING_PR}"
+          else
+            echo "🆕 Creating new PR..."
+            PR_URL=$(gh pr create \
+              --title "🌙 Nightly Improvements" \
+              --body "$PR_BODY" \
+              --label "automated,nightly,improvements" \
+              --base main \
+              --head "${{ env.NIGHTLY_BRANCH }}")
+            
+            PR_NUM=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+            echo "✅ Created PR: $PR_URL"
+          fi
+
+      - name: Request AI reviews
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.pr_number }}"
+          
+          if [ -n "$PR_NUM" ]; then
+            echo "🤖 Requesting AI reviews..."
+            
+            # Note: Ollama review triggers automatically on PR open/sync
+            # But we can request a focused review if the PR was just updated
+            gh pr comment "$PR_NUM" --body "/ollama-review Please review the latest nightly improvements" 2>/dev/null || true
+            
+            # Request reviews from other AI assistants
+            gh pr comment "$PR_NUM" --body "/gemini review" 2>/dev/null || true
+            gh pr comment "$PR_NUM" --body "/q review" 2>/dev/null || true
+          fi
+
+      - name: Output PR info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_URL=$(gh pr view --json url -q '.url' 2>/dev/null || echo "")
+          
+          echo "## 🎉 PR Ready for Review" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** $PR_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "AI reviewers have been notified. Once approved, the PR will auto-merge." >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # SUMMARY
+  # ============================================
+  summary:
+    name: Workflow Summary
+    needs: [analyze, improve, pr]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🌙 Nightly Improvement Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Analyze | ${{ needs.analyze.result == 'success' && '✅' || '❌' }} ${{ needs.analyze.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Improve | ${{ needs.improve.result == 'success' && '✅' || needs.improve.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.improve.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| PR | ${{ needs.pr.result == 'success' && '✅' || needs.pr.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.pr.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔄 Continuous Improvement Loop" >> $GITHUB_STEP_SUMMARY
+          echo "1. ✅ Analyze codebase using Coveralls data" >> $GITHUB_STEP_SUMMARY
+          echo "2. ✅ Update \`${{ env.NIGHTLY_BRANCH }}\` branch" >> $GITHUB_STEP_SUMMARY
+          echo "3. ✅ Create/update single tracking PR" >> $GITHUB_STEP_SUMMARY
+          echo "4. ⏳ AI reviewers provide feedback" >> $GITHUB_STEP_SUMMARY
+          echo "5. ⏳ When approved → auto-merge" >> $GITHUB_STEP_SUMMARY
+          echo "6. 🔄 Repeat tomorrow" >> $GITHUB_STEP_SUMMARY

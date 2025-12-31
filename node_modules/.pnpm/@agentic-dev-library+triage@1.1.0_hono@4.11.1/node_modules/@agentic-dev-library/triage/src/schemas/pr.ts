@@ -1,0 +1,13 @@
+import { z } from 'zod';
+
+export const PRAnalysisSchema = z.object({
+    title: z.string().describe('Suggested optimized title for the PR'),
+    summary: z.string().describe('Executive summary of the changes'),
+    scope: z.enum(['minor', 'major', 'patch', 'breaking']).describe('The scope/impact of the changes'),
+    riskLevel: z.enum(['low', 'medium', 'high']).describe('Risk level of merging these changes'),
+    testingCoverage: z.enum(['none', 'partial', 'full']).describe('Assessment of testing included'),
+    breakingChanges: z.array(z.string()).describe('List of breaking changes identified'),
+    relatedIssues: z.array(z.string()).describe('Identified related issue IDs or URLs'),
+});
+
+export type PRAnalysis = z.infer<typeof PRAnalysisSchema>;

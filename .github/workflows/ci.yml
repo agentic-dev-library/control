@@ -55,10 +55,13 @@ jobs:
         run: pnpm run typecheck
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v4
         with:
           name: build-output
-          path: dist
+          path: |
+            packages/*/dist
+            pnpm-lock.yaml
+            package.json
           retention-days: 1
 
   test:
@@ -77,10 +80,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@v4
         with:
           name: build-output
-          path: dist
+          path: .
 
       - name: Run tests with coverage
         run: pnpm run test:coverage
@@ -89,7 +92,7 @@ jobs:
         uses: coverallsapp/github-action@v2
 
       - name: Upload test results
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results
@@ -122,10 +125,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@v4
         with:
           name: build-output
-          path: dist
+          path: .
 
       - name: Git config
         run: |

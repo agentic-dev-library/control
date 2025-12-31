@@ -1,0 +1,48 @@
+/**
+ * Queue Storage Interface
+ *
+ * Abstract interface for queue persistence.
+ * Implementations can use GitHub Issues, Redis, Files, etc.
+ */
+
+import type { QueueItem, QueueLock, QueueState } from '../queue/types.js';
+
+/**
+ * Storage backend interface
+ * Implement this for your preferred storage (GitHub Issue, Redis, etc.)
+ */
+export interface QueueStorage<T extends QueueItem = QueueItem> {
+    /**
+     * Read the current queue state
+     */
+    read(): Promise<QueueState<T>>;
+
+    /**
+     * Write the queue state
+     */
+    write(state: QueueState<T>): Promise<void>;
+
+    /**
+     * Acquire a distributed lock
+     * @param holder - Identifier for the lock holder
+     * @param ttlMs - Time-to-live in milliseconds
+     * @returns true if lock acquired, false if already locked
+     */
+    acquireLock(holder: string, ttlMs: number): Promise<boolean>;
+
+    /**
+     * Release a distributed lock
+     * @param holder - Must match the holder that acquired the lock
+     */
+    releaseLock(holder: string): Promise<void>;
+
+    /**
+     * Check if a lock is currently held
+     */
+    isLocked(): Promise<boolean>;
+
+    /**
+     * Get the current lock info
+     */
+    getLock(): Promise<QueueLock | null>;
+}

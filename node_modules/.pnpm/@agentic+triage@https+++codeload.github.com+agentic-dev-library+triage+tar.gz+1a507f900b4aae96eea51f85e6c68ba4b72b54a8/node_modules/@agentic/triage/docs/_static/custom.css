@@ -1,0 +1,30 @@
+/* Custom CSS for Sphinx documentation */
+/* Synced from jbcom-control-center */
+
+/* Improve code block readability */
+.highlight {
+    background: #f8f8f8;
+    border-radius: 4px;
+}
+
+/* Better table styling */
+table.docutils {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.docutils td,
+table.docutils th {
+    padding: 8px 12px;
+    border: 1px solid #e1e4e5;
+}
+
+/* Improve sidebar navigation */
+.wy-nav-content {
+    max-width: 900px;
+}
+
+/* Better admonition styling */
+.admonition {
+    border-radius: 4px;
+}

@@ -1,0 +1,19 @@
+name: 'Agentic Triage'
+description: 'AI-powered GitHub issue triage and PR review primitives'
+author: 'Jon Bogaty'
+branding:
+  icon: 'git-pull-request'
+  color: 'purple'
+
+inputs:
+  issue_body:
+    description: 'The body of the issue to analyze'
+    required: true
+
+outputs:
+  result:
+    description: 'The result of the analysis'
+
+runs:
+  using: 'node20'
+  main: 'dist/action.js'

@@ -1,0 +1,3 @@
+.cursor/**
+node_modules/**
+dist/**

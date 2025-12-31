@@ -1,0 +1,44 @@
+/**
+ * @agentic/triage - Escalation Module
+ *
+ * 7-level escalation ladder that exhausts all free options
+ * before resorting to expensive cloud agents.
+ *
+ * Levels:
+ * - 0: Static Analysis (lint/tsc) - Free, instant
+ * - 1: Complexity Evaluation (Ollama) - Free, routes to 2 or 3
+ * - 2: Ollama Fix - Free, simple fixes
+ * - 3: Jules Session - Free tier, complex work
+ * - 4: Jules + Boosted Context - Free tier, more context
+ * - 5: Human Review Queue - Free, awaits approval
+ * - 6: Cloud Agent (Cursor) - Expensive, requires approval
+ *
+ * @packageDocumentation
+ * @module @agentic/triage/escalation
+ */
+
+// Configuration
+export {
+    createEscalationConfig,
+    DEFAULT_ESCALATION_CONFIG,
+    type EscalationConfig,
+} from './config.js';
+// Cost Tracking
+export {
+    type CostEntry,
+    CostTracker,
+    type DailyCostStats,
+} from './cost-tracker.js';
+// Escalation Ladder
+export {
+    EscalationLadder,
+    type LevelHandler,
+    type ProcessResult,
+    type Task,
+} from './ladder.js';
+// State Management
+export {
+    type EscalationLevel,
+    type EscalationState,
+    EscalationStateManager,
+} from './state.js';

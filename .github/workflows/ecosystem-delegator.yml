@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           repository: ${{ env.TARGET_REPO }}
-          token: ${{ secrets.CI_GITHUB_TOKEN }}
+          token: ${{ secrets.CI_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Create Jules Session from Issue
         if: contains(env.COMMENT_BODY, '/jules')
@@ -194,13 +194,13 @@ jobs:
         with:
           repository: ${{ env.TARGET_REPO }}
           fetch-depth: 0
-          token: ${{ secrets.CI_GITHUB_TOKEN }}
+          token: ${{ secrets.CI_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Run Claude on Issue
         uses: anthropics/claude-code-action@154d0de144ff82240e1c3deedff56280381fd122 # main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           allowed_bots: "google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
           allowed_tools: "Edit,Write,Read,Glob,Grep,LS,Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr view),Bash(gh pr create),Bash(gh issue view),Bash(node:*),Bash(npm:*)"
           direct_prompt: |
