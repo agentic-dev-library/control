@@ -1,0 +1,73 @@
+name: SonarCloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: sonar-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'pull_request' || 
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Check SonarCloud Token
+        id: check_token
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "::warning ::SONAR_TOKEN is missing. Skipping analysis."
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          fi
+
+      # IMPORTANT: fetch-depth: 0 is REQUIRED for SonarCloud blame info
+      - uses: actions/checkout@v4
+        if: steps.check_token.outputs.has_token == 'true'
+        with:
+          fetch-depth: 0
+
+      # pnpm version is read from packageManager in package.json
+      - uses: pnpm/action-setup@v4
+        if: steps.check_token.outputs.has_token == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check_token.outputs.has_token == 'true'
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.check_token.outputs.has_token == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        if: steps.check_token.outputs.has_token == 'true'
+        run: pnpm build
+
+      # IMPORTANT: Coverage must run in SAME JOB as SonarCloud
+      - name: Run tests with coverage
+        if: steps.check_token.outputs.has_token == 'true'
+        run: pnpm test:coverage
+
+      - name: SonarCloud Scan
+        if: steps.check_token.outputs.has_token == 'true'
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectVersion=${{ github.event.pull_request.head.sha || github.sha }}

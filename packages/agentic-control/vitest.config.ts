@@ -7,9 +7,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       reportsDirectory: './coverage',
+      thresholds: {
+        lines: 10,
+        functions: 10,
+        branches: 10,
+        statements: 10,
+      },
     },
-    // Setup files for test fixtures from vitest-agentic-control
-    // NOTE: Path is resolved relative to this vitest.config.ts file location
     setupFiles: ['./tests/setup.ts'],
   },
 });

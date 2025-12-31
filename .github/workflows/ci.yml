@@ -1,4 +1,4 @@
-name: CI (Python)
+name: CI
 
 on:
   push:
@@ -6,10 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_COLOR: "1"
-  PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  PIP_NO_PYTHON_VERSION_WARNING: "1"
 
 permissions:
   contents: read
@@ -17,8 +19,98 @@ permissions:
   id-token: write
 
 jobs:
+  # ==========================================================================
+  # Node.js / TypeScript
+  # ==========================================================================
   lint:
-    name: Lint & Type Check
+    name: Lint (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm lint
+
+  typecheck:
+    name: Typecheck (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm typecheck
+
+  build:
+    name: Build (Node)
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm build
+      - name: Verify builds
+        run: |
+          ERROR=0
+          for pkg in packages/*/; do
+            if [ -d "$pkg/dist" ]; then
+              echo "✅ $pkg built successfully"
+            else
+              echo "❌ $pkg has no dist"
+              ERROR=1
+            fi
+          done
+          exit $ERROR
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            packages/*/dist
+            dist
+          retention-days: 1
+
+  test:
+    name: Test (Node)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --no-frozen-lockfile
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage/lcov.info
+
+  # ==========================================================================
+  # Python
+  # ==========================================================================
+  lint-python:
+    name: Lint (Python)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,10 +127,10 @@ jobs:
           uv sync --all-extras
           uv run mypy .
 
-  test:
+  test-python:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    needs: lint
+    needs: lint-python
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
@@ -53,15 +145,18 @@ jobs:
         run: uv sync --all-extras
       - name: Run tests
         run: uv run pytest --cov --cov-report=xml
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  # ==========================================================================
+  # Release
+  # ==========================================================================
   release:
     name: Release
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: test
+    needs: [test, test-python]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -71,6 +166,18 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.CI_GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install
+      - name: Release (Node)
+        env:
+          GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release
+      
       - uses: astral-sh/setup-uv@v5
       - name: Python Semantic Release
         env:
