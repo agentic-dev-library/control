@@ -1,0 +1,225 @@
+name: Ecosystem Delegator
+
+# Handles delegation commands in issue comments:
+# - /jules - delegate to Google Jules
+# - /cursor - delegate to Cursor agent
+# - @claude - delegate to Claude
+
+on:
+  issue_comment:
+    types: [created]
+
+  # Enterprise Reusable Workflow
+  workflow_call:
+    inputs:
+      comment_body:
+        description: 'The comment that triggered delegation'
+        required: true
+        type: string
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: number
+      issue_title:
+        description: 'Issue title'
+        required: false
+        type: string
+      issue_body:
+        description: 'Issue body/description'
+        required: false
+        type: string
+      repository:
+        description: 'Repository owner/name'
+        required: true
+        type: string
+      default_branch:
+        description: 'Default branch of the target repository'
+        required: false
+        default: 'main'
+        type: string
+    secrets:
+      CI_GITHUB_TOKEN:
+        required: true
+      GOOGLE_JULES_API_KEY:
+        required: false
+      CURSOR_API_KEY:
+        required: false
+      ANTHROPIC_API_KEY:
+        required: false
+
+  # Manual/On-call trigger
+  workflow_dispatch:
+    inputs:
+      comment_body:
+        description: 'Command (e.g. /jules fix this)'
+        required: true
+        type: string
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: number
+      issue_title:
+        description: 'Issue title'
+        required: false
+        type: string
+      issue_body:
+        description: 'Issue body/description'
+        required: false
+        type: string
+      repository:
+        description: 'Repository'
+        required: true
+        type: string
+      default_branch:
+        description: 'Default branch of the target repository'
+        default: 'main'
+        type: string
+
+env:
+  TARGET_REPO: ${{ inputs.repository || github.repository }}
+  TARGET_ISSUE: ${{ inputs.issue_number || github.event.issue.number }}
+  ISSUE_TITLE: ${{ inputs.issue_title || github.event.issue.title }}
+  ISSUE_BODY: ${{ inputs.issue_body || github.event.issue.body }}
+  COMMENT_BODY: ${{ inputs.comment_body || github.event.comment.body }}
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  # ============================================
+  # Jules/Cursor delegation
+  # ============================================
+  delegate-command:
+    name: Delegate to Jules/Cursor
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && (contains(github.event.comment.body, '/jules') || contains(github.event.comment.body, '/cursor'))) ||
+      (github.event_name == 'workflow_call' && (contains(inputs.comment_body, '/jules') || contains(inputs.comment_body, '/cursor'))) ||
+      (github.event_name == 'workflow_dispatch' && (contains(inputs.comment_body, '/jules') || contains(inputs.comment_body, '/cursor')))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Create Jules Session from Issue
+        if: contains(env.COMMENT_BODY, '/jules')
+        env:
+          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ inputs.default_branch || github.event.repository.default_branch || 'main' }}
+        run: |
+          # Extract prompt from comment, removing the /jules command
+          PROMPT=$(echo "${COMMENT_BODY}" | sed -n 's|/jules ||p')
+
+          if [[ -z "$PROMPT" ]]; then
+            echo "Jules command used without a prompt. Exiting."
+            exit 0
+          fi
+
+          RESPONSE=$(curl -s -X POST "https://jules.googleapis.com/v1alpha/sessions" \
+            -H "X-Goog-Api-Key: $GOOGLE_JULES_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg task "$PROMPT" \
+              --arg repo "$TARGET_REPO" \
+              --arg branch "$DEFAULT_BRANCH" \
+              '{
+                prompt: $task,
+                sourceContext: {
+                  source: ("sources/github/" + ($repo | split("/")[0]) + "/" + ($repo | split("/")[1])),
+                  githubRepoContext: { startingBranch: $branch }
+                },
+                automationMode: "AUTO_CREATE_PR",
+                title: ("Jules: Address issue #" + env.TARGET_ISSUE)
+              }')")
+
+          SESSION_ID=$(echo "$RESPONSE" | jq -r '.name // empty' | sed 's|sessions/||')
+
+          if [[ -n "$SESSION_ID" ]]; then
+            gh issue comment "$TARGET_ISSUE" --repo "$TARGET_REPO" --body "✅ **Jules session created**: https://jules.google.com/session/${SESSION_ID}"
+          else
+            gh issue comment "$TARGET_ISSUE" --repo "$TARGET_REPO" --body "❌ **Error creating Jules session.**"
+            echo "Failed to create Jules session. Response: $RESPONSE"
+            exit 1
+          fi
+
+      - name: Create Cursor Cloud Agent
+        if: contains(env.COMMENT_BODY, '/cursor')
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          # Extract prompt from comment, removing the /cursor command
+          PROMPT=$(echo "${COMMENT_BODY}" | sed -n 's|/cursor ||p')
+
+          if [[ -z "$PROMPT" ]]; then
+            echo "Cursor command used without a prompt. Exiting."
+            exit 0
+          fi
+
+          RESPONSE=$(curl -s -X POST "https://api.cursor.com/v0/agents" \
+            -u "$CURSOR_API_KEY:" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg task "$PROMPT" \
+              --arg repo "$TARGET_REPO" \
+              '{"prompt":{"text":$task},"source":{"repository":$repo}}')")
+
+          AGENT_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
+
+          if [[ -n "$AGENT_ID" ]]; then
+            gh issue comment "$TARGET_ISSUE" --repo "$TARGET_REPO" --body "✅ **Cursor agent spawned**: ID $AGENT_ID"
+          else
+            gh issue comment "$TARGET_ISSUE" --repo "$TARGET_REPO" --body "❌ **Error spawning Cursor agent.**"
+            echo "Failed to spawn Cursor agent. Response: $RESPONSE"
+            exit 1
+          fi
+
+  # ============================================
+  # Claude delegation (@claude in issues)
+  # ============================================
+  delegate-claude:
+    name: Delegate to Claude
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'workflow_call' && contains(inputs.comment_body, '@claude')) ||
+      (github.event_name == 'workflow_dispatch' && contains(inputs.comment_body, '@claude'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          fetch-depth: 0
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Run Claude on Issue
+        uses: anthropics/claude-code-action@154d0de144ff82240e1c3deedff56280381fd122 # main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          allowed_bots: "google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
+          allowed_tools: "Edit,Write,Read,Glob,Grep,LS,Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr view),Bash(gh pr create),Bash(gh issue view),Bash(node:*),Bash(npm:*)"
+          direct_prompt: |
+            Issue in ${{ env.TARGET_REPO }}: #${{ env.TARGET_ISSUE }}
+
+            Title: ${{ env.ISSUE_TITLE }}
+
+            Description:
+            ${{ env.ISSUE_BODY }}
+
+            ---
+
+            Triggering comment: ${{ env.COMMENT_BODY }}
+
+            ---
+
+            Analyze the issue and either:
+            1. Answer the question if it's a question
+            2. Implement a fix if it's a bug
+            3. Implement the feature if it's a feature request
+
+            Create a PR with your changes.

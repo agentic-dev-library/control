@@ -1,0 +1,252 @@
+name: Ecosystem Reviewer
+
+# Tiered AI Review Pipeline:
+# 1. Ollama (fast, cheap) → quick review
+# 2. Claude (escalation) → complex PRs or many issues
+# 3. Jules (refactor) → when code changes needed
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  # Also handle @claude mentions in PR comments
+  issue_comment:
+    types: [created]
+
+  # Enterprise Reusable Workflow
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: number
+      repository:
+        description: 'Repository to review (owner/repo)'
+        required: true
+        type: string
+      model_tier:
+        description: 'Model tier to use (ollama, claude, jules, all)'
+        required: false
+        default: 'ollama'
+        type: string
+    secrets:
+      CI_GITHUB_TOKEN:
+        required: true
+      ANTHROPIC_API_KEY:
+        required: false
+      GOOGLE_JULES_API_KEY:
+        required: false
+      OLLAMA_API_KEY:
+        required: false
+
+  # Manual/On-call trigger
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: number
+      repository:
+        description: 'Repository to review'
+        required: true
+        type: string
+      model_tier:
+        description: 'Model tier (ollama, claude, jules, all)'
+        default: 'ollama'
+        type: string
+
+env:
+  OLLAMA_HOST: ${{ secrets.OLLAMA_API_URL || vars.OLLAMA_API_URL || vars.OLLAMA_HOST || 'https://ollama.com' }}
+  OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'glm-4.6:cloud' }}
+  TARGET_REPO: ${{ inputs.repository || github.repository }}
+  TARGET_PR: ${{ inputs.pr_number || github.event.pull_request.number || github.event.issue.number }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  # ============================================
+  # TIER 1: Ollama Quick Review
+  # ============================================
+  ollama-review:
+    name: Ollama Review
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'workflow_call' && (inputs.model_tier == 'ollama' || inputs.model_tier == 'all')) ||
+      (github.event_name == 'workflow_dispatch' && (inputs.model_tier == 'ollama' || inputs.model_tier == 'all'))
+    runs-on: ubuntu-latest
+    outputs:
+      suggestion_count: ${{ steps.review.outputs.suggestion_count }}
+      needs_escalation: ${{ steps.check.outputs.needs_escalation }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          fetch-depth: 0
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Review PR
+        id: review
+        uses: jbcom/control-center/.github/actions/agentic-pr-review@main
+        with:
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          model: ${{ env.OLLAMA_MODEL }}
+          ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
+          ollama_host: ${{ env.OLLAMA_HOST }}
+          jules_api_key: ${{ secrets.GOOGLE_JULES_API_KEY }}
+
+      - name: Check if escalation needed
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          SUGGESTIONS="${{ steps.review.outputs.suggestion_count }}"
+          ADDITIONS=$(gh pr view ${{ env.TARGET_PR }} --repo ${{ env.TARGET_REPO }} --json additions --jq '.additions')
+
+          # Escalate if: >5 suggestions OR >500 lines changed OR Ollama failed
+          if [[ "$SUGGESTIONS" -gt 5 ]] || [[ "$ADDITIONS" -gt 500 ]] || [[ -z "$SUGGESTIONS" ]]; then
+            echo "needs_escalation=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_escalation=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================
+  # TIER 2: Claude Escalation (complex PRs)
+  # ============================================
+  claude-review:
+    name: Claude Review
+    needs: ollama-review
+    if: |
+      always() && (
+        needs.ollama-review.outputs.needs_escalation == 'true' ||
+        (github.event_name == 'workflow_call' && inputs.model_tier == 'claude') ||
+        (github.event_name == 'workflow_dispatch' && inputs.model_tier == 'claude')
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      critical_issues: ${{ steps.claude.outputs.critical_issues }}
+    steps:
+      - name: Check API Key
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        if: steps.check-key.outputs.available == 'true'
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          fetch-depth: 0
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Claude Code Review
+        if: steps.check-key.outputs.available == 'true'
+        id: claude
+        uses: anthropics/claude-code-action@154d0de144ff82240e1c3deedff56280381fd122 # main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          allowed_bots: "google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
+          allowed_tools: "Read,Glob,Grep,LS,Bash(git diff),Bash(gh pr view),Bash(gh pr list),Bash(gh issue view)"
+          direct_prompt: |
+            Review this PR thoroughly in ${{ env.TARGET_REPO }}. Focus on:
+            - Security issues (tokens, secrets, injection)
+            - Logic errors and bugs
+            - Performance problems
+            - Missing error handling
+
+            PR: #${{ env.TARGET_PR }}
+
+            If no critical issues, APPROVE the PR.
+            Post inline comments for specific issues.
+
+  # ============================================
+  # TIER 3: Jules Refactor (when code changes needed)
+  # ============================================
+  jules-refactor:
+    name: Jules Refactor
+    needs: [ollama-review, claude-review]
+    if: |
+      always() && (
+        (needs.ollama-review.result == 'success' && needs.ollama-review.outputs.suggestion_count > 10) ||
+        (github.event_name == 'workflow_call' && inputs.model_tier == 'jules') ||
+        (github.event_name == 'workflow_dispatch' && inputs.model_tier == 'jules')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for API Key
+        id: check
+        run: |
+          if [[ -z "${{ secrets.GOOGLE_JULES_API_KEY }}" ]]; then
+            echo "available=false" >> $GITHUB_OUTPUT
+          else
+            echo "available=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Jules Session from PR
+        if: steps.check.outputs.available == 'true'
+        id: jules
+        env:
+          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          set -eo pipefail
+
+          PR_DATA=$(gh pr view "$TARGET_PR" --repo "$TARGET_REPO" --json title,headRefName)
+          PR_TITLE=$(echo "$PR_DATA" | jq -r .title)
+          PR_BRANCH=$(echo "$PR_DATA" | jq -r .headRefName)
+
+          RESPONSE=$(curl -sf -X POST "https://jules.googleapis.com/v1alpha/sessions" \
+            -H "X-Goog-Api-Key: $GOOGLE_JULES_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg task "Refactor PR #${TARGET_PR}: ${PR_TITLE}" \
+              --arg repo "$TARGET_REPO" \
+              --arg branch "$PR_BRANCH" \
+              '{
+                prompt: $task,
+                sourceContext: {
+                  source: ("sources/github/" + ($repo | split("/")[0]) + "/" + ($repo | split("/")[1])),
+                  githubRepoContext: { startingBranch: $branch }
+                },
+                automationMode: "AUTO_CREATE_PR"
+              }')")
+
+          SESSION_ID=$(echo "$RESPONSE" | jq -r '.name // empty' | sed 's|sessions/||')
+
+          if [[ -n "$SESSION_ID" ]]; then
+            gh pr comment "$TARGET_PR" --repo "$TARGET_REPO" --body "🔧 **Jules refactoring session started**: https://jules.google.com/session/${SESSION_ID}"
+          else
+            gh pr comment "$TARGET_PR" --repo "$TARGET_REPO" --body "❌ **Error creating Jules refactoring session.**"
+            echo "Failed to create Jules session. Response: $RESPONSE"
+            exit 1
+          fi
+
+  # ============================================
+  # INTERACTIVE: @claude mentions
+  # ============================================
+  claude-interactive:
+    name: Claude Interactive
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          fetch-depth: 0
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Run Claude
+        uses: anthropics/claude-code-action@154d0de144ff82240e1c3deedff56280381fd122 # main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          allowed_bots: "google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
+          allowed_tools: "Edit,Write,Read,Glob,Grep,LS,Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr view),Bash(gh pr list),Bash(node:*),Bash(npm:*)"
