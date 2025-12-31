@@ -45,7 +45,7 @@ describe('Production Release Properties', () => {
       if (!process.env.CI) {
         for (const file of distFiles) {
           const ext = extname(file);
-          const isValidExtension = ['.js', '.ts', '.map'].includes(ext) || file.endsWith('.d.ts');
+          const isValidExtension = ['.js', '.ts', '.map', '.d.ts'].some((e) => file.endsWith(e));
           const isPythonFile = ext === '.py' || ext === '.pyc' || file.includes('__pycache__');
 
           expect(isPythonFile, `Found Python file in dist: ${file}`).toBe(false);
@@ -416,7 +416,9 @@ describe('Production Release Properties', () => {
     it('should have strict mode enabled in TypeScript configuration', async () => {
       // Check for tsconfig.json in the package directory
       const tsconfigPath = join(PACKAGE_ROOT, 'tsconfig.json');
-      const content = await import('node:fs').then((fs) => fs.promises.readFile(tsconfigPath, 'utf-8'));
+      const content = await import('node:fs').then((fs) =>
+        fs.promises.readFile(tsconfigPath, 'utf-8')
+      );
       const tsconfig = JSON.parse(content);
 
       expect(tsconfig.compilerOptions.strict).toBe(true);
@@ -576,12 +578,12 @@ describe('Property 5: Docker runtime versions', () => {
   it('should have correct runtime versions in Docker image', async () => {
     // This test would require Docker to be available
     // For now, we'll verify the Dockerfile specifies the correct versions
-    const dockerfile = await import('node:fs').then((fs) =>
+    const dockerfileContent = await import('node:fs').then((fs) =>
       fs.promises.readFile(join(WORKSPACE_ROOT, 'Dockerfile'), 'utf-8')
     );
 
-    expect(dockerfile).toContain('FROM node:22-slim');
-    expect(dockerfile).toContain('FROM python:3.13-slim');
+    expect(dockerfileContent).toContain('FROM node:22-slim');
+    expect(dockerfileContent).toContain('FROM python:3.13-slim');
   });
 });
 
@@ -594,17 +596,17 @@ describe('Property 6: Docker package installation', () => {
    * be executable inside the container.
    */
   it('should install both packages in Docker image', async () => {
-    const dockerfile = await import('node:fs').then((fs) =>
+    const dockerfileContent = await import('node:fs').then((fs) =>
       fs.promises.readFile(join(WORKSPACE_ROOT, 'Dockerfile'), 'utf-8')
     );
 
     // Allow any variant of pip install for Python crews
-    expect(dockerfile).toMatch(/pip install.*python/);
+    expect(dockerfileContent).toMatch(/pip install.*python/);
     // agentic-control is built from source (monorepo packages)
-    expect(dockerfile).toContain('pnpm run build');
+    expect(dockerfileContent).toContain('pnpm run build');
     // Entry point uses the built CLI
-    expect(dockerfile).toContain('ENTRYPOINT');
-    expect(dockerfile).toMatch(/cli\.js/);
+    expect(dockerfileContent).toContain('ENTRYPOINT');
+    expect(dockerfileContent).toMatch(/cli\.js/);
   });
 });
 
@@ -619,13 +621,14 @@ describe('Property 7: Multi-architecture support', () => {
   it('should configure multi-architecture builds', async () => {
     // Multi-arch builds are in CD workflow (releases), not CI (PRs)
     // CI uses single-arch to avoid QEMU memory issues on runners
-    const cdWorkflow = await import('node:fs').then((fs) =>
-      fs.promises.readFile(join(WORKSPACE_ROOT, '.github/workflows/cd.yml'), 'utf-8')
+    const cdWorkflowPath = join(WORKSPACE_ROOT, '.github/workflows/cd.yml');
+    const content = await import('node:fs').then((fs) =>
+      fs.promises.readFile(cdWorkflowPath, 'utf-8')
     );
 
     // Skip assertion if new CD structure doesn't use Docker directly
-    if (cdWorkflow.includes('platforms:')) {
-      expect(cdWorkflow).toContain('platforms: linux/amd64,linux/arm64');
+    if (content.includes('platforms:')) {
+      expect(content).toContain('platforms: linux/amd64,linux/arm64');
     }
   });
 });
@@ -636,13 +639,13 @@ describe('Docker non-root user example', () => {
    * Verify Dockerfile uses UID 1000 for agent user
    */
   it('should use non-root user with UID 1000', async () => {
-    const dockerfile = await import('node:fs').then((fs) =>
+    const dockerfileContent = await import('node:fs').then((fs) =>
       fs.promises.readFile(join(WORKSPACE_ROOT, 'Dockerfile'), 'utf-8')
     );
 
     // Allow any variant of useradd with UID 1000
-    expect(dockerfile).toMatch(/useradd.*-u 1000.*agent/);
-    expect(dockerfile).toContain('USER agent');
+    expect(dockerfileContent).toMatch(/useradd.*-u 1000.*agent/);
+    expect(dockerfileContent).toContain('USER agent');
   });
 });
 describe('Property 8: Workspace mounting', () => {
@@ -786,45 +789,45 @@ describe('Property 13: API documentation completeness', () => {
    * For any public TypeScript module export, the generated documentation should
    * include an API reference entry with type signatures.
    */
-    it('should have complete API documentation for all exports', async () => {
-      const distPath = join(PACKAGE_ROOT, 'dist');
-      // Check that main exports are documented
-      const mainExports = await import('../src/index.js');
-      const exportNames = Object.keys(mainExports);
+  it('should have complete API documentation for all exports', async () => {
+    const distPath = join(PACKAGE_ROOT, 'dist');
+    // Check that main exports are documented
+    const mainExports = await import('../src/index.js');
+    const exportNames = Object.keys(mainExports);
 
-      // Verify we have key exports
-      expect(exportNames).toContain('Fleet');
-      expect(exportNames).toContain('AIAnalyzer');
-      expect(exportNames).toContain('SandboxExecutor');
-      expect(exportNames).toContain('GitHubClient');
-      expect(exportNames).toContain('HandoffManager');
+    // Verify we have key exports
+    expect(exportNames).toContain('Fleet');
+    expect(exportNames).toContain('AIAnalyzer');
+    expect(exportNames).toContain('SandboxExecutor');
+    expect(exportNames).toContain('GitHubClient');
+    expect(exportNames).toContain('HandoffManager');
 
-      // Check that TypeScript declaration files exist
-      const distFiles = await getAllFiles(distPath);
-      const declarationFiles = distFiles.filter((f) => f.endsWith('.d.ts'));
+    // Check that TypeScript declaration files exist
+    const distFiles = await getAllFiles(distPath);
+    const declarationFiles = distFiles.filter((f) => f.endsWith('.d.ts'));
 
+    if (!process.env.CI) {
+      expect(declarationFiles.length).toBeGreaterThan(0);
+    }
+
+    // Verify main modules have declaration files
+    const expectedDeclarations = [
+      'dist/index.d.ts',
+      'dist/fleet/index.d.ts',
+      'dist/triage/index.d.ts',
+      'dist/sandbox/index.d.ts',
+      'dist/github/index.d.ts',
+      'dist/handoff/index.d.ts',
+      'dist/core/index.d.ts',
+    ];
+
+    for (const expectedFile of expectedDeclarations) {
       if (!process.env.CI) {
-        expect(declarationFiles.length).toBeGreaterThan(0);
+        const exists = distFiles.some((f) => f.endsWith(expectedFile.replace('dist/', '')));
+        expect(exists, `Missing declaration file: ${expectedFile}`).toBe(true);
       }
-
-      // Verify main modules have declaration files
-      const expectedDeclarations = [
-        'dist/index.d.ts',
-        'dist/fleet/index.d.ts',
-        'dist/triage/index.d.ts',
-        'dist/sandbox/index.d.ts',
-        'dist/github/index.d.ts',
-        'dist/handoff/index.d.ts',
-        'dist/core/index.d.ts',
-      ];
-
-      for (const expectedFile of expectedDeclarations) {
-        if (!process.env.CI) {
-          const exists = distFiles.some((f) => f.endsWith(expectedFile.replace('dist/', '')));
-          expect(exists, `Missing declaration file: ${expectedFile}`).toBe(true);
-        }
-      }
-    });
+    }
+  });
 });
 describe('Documentation files example tests', () => {
   /**
