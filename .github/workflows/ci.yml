@@ -48,7 +48,7 @@ jobs:
           restore-keys: pnpm-store-
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Lint and Format Check
         run: pnpm run check
