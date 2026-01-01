@@ -1,24 +1,114 @@
-# AI Curator - calls control-center reusable workflow
+# AI Curator - Daily/event-driven curation pipeline
+# Tier 1: Ollama (fast triage) via control-center
+# Tier 2: Claude (issue analysis, deduplication)
+# Tier 3: Jules (scheduled maintenance tasks)
 # Synced from jbcom/control-center
 name: AI Curator
 
 on:
+  issues:
+    types: [opened, labeled]
   schedule:
     - cron: '0 3 * * *'  # 3 AM UTC daily
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Curation mode'
+        type: choice
+        options:
+          - full
+          - triage-only
+        default: full
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
+# No workflow-level permissions - job level only
+permissions: {}
 
 jobs:
+  # ════════════════════════════════════════════════════════════════
+  # EVENT: New Issue Triage (Claude)
+  # ════════════════════════════════════════════════════════════════
+  claude-triage:
+    name: Claude Issue Triage
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: claude-triage-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Check API Key
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY not configured"
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.check-key.outputs.available == 'true'
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Triage with Claude
+        if: steps.check-key.outputs.available == 'true'
+        uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          allowed_bots: "cursor[bot],jules[bot],google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE_NUMBER: ${{ github.event.issue.number }}
+
+            Triage this new issue:
+
+            1. **LABELS**: Apply appropriate labels from:
+               - Type: bug, enhancement, documentation, question
+               - Priority: priority:critical, priority:high, priority:medium, priority:low
+
+            2. **DUPLICATES**: Search for similar issues. If found:
+               - Comment with link to duplicate
+               - Add "duplicate" label
+               - Close if clear duplicate
+
+            3. **VALIDATION**: Check if issue has:
+               - Clear description
+               - Reproduction steps (for bugs)
+               - Expected vs actual behavior
+
+            4. **RESPONSE**: Add a helpful comment acknowledging the issue.
+
+          claude_args: |
+            --allowedTools "Read,Glob,Grep,LS,Bash(gh:*),mcp__github__get_issue,mcp__github__update_issue,mcp__github__add_issue_comment,mcp__github__list_issues,mcp__github__search_issues"
+
+  # ════════════════════════════════════════════════════════════════
+  # SCHEDULED: Ollama Curation (control-center)
+  # ════════════════════════════════════════════════════════════════
   build:
+    name: Build Control Center
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode != 'triage-only')
+    permissions:
+      contents: read
     uses: jbcom/control-center/.github/workflows/control-center-build.yml@main
 
-  curate:
+  ollama-curate:
+    name: Ollama Curation
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Download binary
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
@@ -39,3 +129,116 @@ jobs:
           /tmp/control-center curator \
             --repo "${{ github.repository }}" \
             --log-level info
+
+  # ════════════════════════════════════════════════════════════════
+  # SCHEDULED: Claude Issue Deduplication
+  # ════════════════════════════════════════════════════════════════
+  claude-dedup:
+    name: Claude Deduplication
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: claude-dedup
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Check API Key
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.check-key.outputs.available == 'true'
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Dedup with Claude
+        if: steps.check-key.outputs.available == 'true'
+        uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          allowed_bots: "cursor[bot],jules[bot],google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
+          prompt: |
+            REPO: ${{ github.repository }}
+
+            Scan open issues for duplicates:
+
+            1. List all open issues
+            2. Group similar issues by topic/description
+            3. For each duplicate group:
+               - Identify the canonical (oldest or most detailed) issue
+               - Comment on duplicates linking to canonical
+               - Add "duplicate" label to duplicates
+               - Recommend closing duplicates
+
+          claude_args: |
+            --allowedTools "Read,Glob,Grep,LS,Bash(gh:*),mcp__github__list_issues,mcp__github__search_issues,mcp__github__get_issue,mcp__github__update_issue,mcp__github__add_issue_comment"
+
+  # ════════════════════════════════════════════════════════════════
+  # EVENT: Jules Bug Fixer (on 'bug' label)
+  # ════════════════════════════════════════════════════════════════
+  jules-bug-fix:
+    name: Jules Bug Fixer
+    if: |
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'bug'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+      id-token: write
+    steps:
+      - name: Check API Key
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.GOOGLE_JULES_API_KEY }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fix Bug with Jules
+        if: steps.check-key.outputs.available == 'true'
+        uses: google-labs-code/jules-action@bff7875eaa123cac6742b7cfc51005b95ba4d566 # v1.0.0
+        with:
+          jules_api_key: ${{ secrets.GOOGLE_JULES_API_KEY }}
+          starting_branch: 'main'
+          prompt: |
+            # 🐛 BUG FIX
+
+            **MUST CREATE PR with labels:** `jules-pr`, `bug-fix`, `auto-triage`
+            **Branch:** `jules/fix-issue-${{ github.event.issue.number }}`
+            **PR Title:** `🐛 Fix: [Brief description]`
+
+            ## Bug Report
+            **Issue:** #${{ github.event.issue.number }}
+            **Title:** ${{ github.event.issue.title }}
+
+            ${{ github.event.issue.body }}
+
+            ## Process
+            1. Analyze the bug report
+            2. Trace the issue through the codebase
+            3. Implement minimal fix
+            4. Verify the build passes
+
+            ## PR Body MUST include:
+            - Summary: Fixes #${{ github.event.issue.number }}
+            - Root Cause: [explanation]
+            - Solution: [explanation]
+            - Testing checklist

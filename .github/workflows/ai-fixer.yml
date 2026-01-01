@@ -1,5 +1,7 @@
-# AI CI Fixer - calls control-center reusable workflow
-# Synced from jbcom/control-center
+# AI CI Fixer - Tiered fix pipeline
+# Tier 1: Ollama (fast diagnosis) via control-center
+# Tier 2: Claude (complex fixes / flaky test detection)
+# Tier 3: Jules (major refactor) when significant changes needed
 name: AI Fixer
 
 on:
@@ -8,19 +10,76 @@ on:
     types: [completed]
     branches-ignore: [main]
 
-permissions:
-  contents: read
-  pull-requests: write
-  actions: read
+# No workflow-level permissions - job level only
+permissions: {}
 
 jobs:
+  # ════════════════════════════════════════════════════════════════
+  # VALIDATION: Security checks before processing
+  # ════════════════════════════════════════════════════════════════
+  validate:
+    name: Validate Source
+    if: |
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.pull_requests[0] &&
+      !startsWith(github.event.workflow_run.head_branch, 'claude-fix-') &&
+      !startsWith(github.event.workflow_run.head_branch, 'jules/')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      is_trusted: ${{ steps.check.outputs.is_trusted }}
+      head_branch: ${{ steps.check.outputs.head_branch }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+    steps:
+      - name: Security validation
+        id: check
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          BASE_REPO: ${{ github.event.workflow_run.repository.full_name }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: |
+          # Security: Reject PRs from forks
+          if [[ "$HEAD_REPO" != "$BASE_REPO" ]]; then
+            echo "::warning::PR from fork ($HEAD_REPO), skipping auto-fix"
+            echo "is_trusted=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Validate branch name
+          if [[ ! "$HEAD_BRANCH" =~ ^[a-zA-Z0-9/_.-]+$ ]]; then
+            echo "::error::Invalid branch name"
+            echo "is_trusted=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "is_trusted=true" >> $GITHUB_OUTPUT
+          echo "head_branch=$HEAD_BRANCH" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+  # ════════════════════════════════════════════════════════════════
+  # TIER 1: Ollama Quick Fix (control-center)
+  # ════════════════════════════════════════════════════════════════
   build:
-    if: github.event.workflow_run.conclusion == 'failure'
+    needs: validate
+    if: needs.validate.outputs.is_trusted == 'true'
+    permissions:
+      contents: read
     uses: jbcom/control-center/.github/workflows/control-center-build.yml@main
 
-  fix:
-    needs: build
+  ollama-fix:
+    name: Ollama Fix
+    needs: [validate, build]
+    if: needs.validate.outputs.is_trusted == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    outputs:
+      fix_applied: ${{ steps.fix.outputs.fix_applied }}
+      needs_escalation: ${{ steps.fix.outputs.needs_escalation }}
     steps:
       - name: Download binary
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
@@ -31,12 +90,274 @@ jobs:
           github-token: ${{ secrets.CI_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Run fixer
+        id: fix
         env:
           GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
         run: |
           chmod +x /tmp/control-center
-          /tmp/control-center fixer \
+          
+          OUTPUT=$(/tmp/control-center fixer \
             --repo "${{ github.repository }}" \
             --run-id "${{ github.event.workflow_run.id }}" \
-            --log-level info
+            --log-level info 2>&1) || true
+          
+          # Check if fix was applied
+          if echo "$OUTPUT" | grep -q "fix applied\|commit created\|PR created"; then
+            echo "fix_applied=true" >> $GITHUB_OUTPUT
+            echo "needs_escalation=false" >> $GITHUB_OUTPUT
+          else
+            echo "fix_applied=false" >> $GITHUB_OUTPUT
+            echo "needs_escalation=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ════════════════════════════════════════════════════════════════
+  # TIER 1B: Claude Flaky Test Detection (parallel)
+  # ════════════════════════════════════════════════════════════════
+  claude-flaky-detect:
+    name: Claude Flaky Detection
+    needs: validate
+    if: needs.validate.outputs.is_trusted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: claude-flaky-${{ github.event.workflow_run.id }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: write
+      id-token: write
+    outputs:
+      is_flaky: ${{ steps.detect.outputs.is_flaky }}
+      should_retry: ${{ steps.decide.outputs.should_retry }}
+    steps:
+      - name: Check API Key
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.check-key.outputs.available == 'true'
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Detect flaky test failures
+        id: detect
+        if: steps.check-key.outputs.available == 'true'
+        uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f # v1
+        env:
+          WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_ID: ${{ github.event.workflow_run.id }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          allowed_bots: "cursor[bot],jules[bot],google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
+          prompt: |
+            The CI workflow failed: ${{ env.WORKFLOW_URL }}
+            Check the logs: gh run view ${{ env.WORKFLOW_ID }} --log-failed
+
+            Determine if this looks like a flaky test failure by checking for:
+            - Timeout errors
+            - Race conditions
+            - Network errors
+            - "Expected X but got Y" intermittent failures
+            - Tests that passed in previous commits
+
+            Return:
+            - is_flaky: true if likely flaky, false if real bug
+            - confidence: number 0-1 indicating confidence level
+            - summary: brief one-sentence explanation
+          claude_args: |
+            --json-schema '{"type":"object","properties":{"is_flaky":{"type":"boolean"},"confidence":{"type":"number","minimum":0,"maximum":1},"summary":{"type":"string"}},"required":["is_flaky","confidence","summary"]}'
+            --allowedTools "Read,Glob,Grep,LS,Bash(gh:*),mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_ci__download_job_log"
+
+      - name: Decide on retry
+        id: decide
+        if: steps.check-key.outputs.available == 'true'
+        run: |
+          OUTPUT='${{ steps.detect.outputs.structured_output }}'
+          if ! echo "$OUTPUT" | jq empty 2>/dev/null; then
+            echo "should_retry=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          IS_FLAKY=$(echo "$OUTPUT" | jq -r '.is_flaky // false')
+          CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence // 0')
+          
+          # Auto-retry only if flaky AND high confidence
+          if [ "$IS_FLAKY" = "true" ] && [ "$(echo "$CONFIDENCE >= 0.7" | bc -l)" = "1" ]; then
+            echo "should_retry=true" >> $GITHUB_OUTPUT
+            echo "is_flaky=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_retry=false" >> $GITHUB_OUTPUT
+            echo "is_flaky=$IS_FLAKY" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Retry workflow
+        if: steps.decide.outputs.should_retry == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ needs.validate.outputs.head_branch }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          echo "🔄 Flaky test detected - triggering automatic retry..."
+          gh workflow run "$WORKFLOW_NAME" --ref "$HEAD_BRANCH"
+
+  # ════════════════════════════════════════════════════════════════
+  # TIER 2: Claude Deep Fix (for complex failures)
+  # ════════════════════════════════════════════════════════════════
+  claude-fix:
+    name: Claude Fix
+    needs: [validate, ollama-fix, claude-flaky-detect]
+    if: |
+      always() &&
+      needs.validate.outputs.is_trusted == 'true' &&
+      needs.ollama-fix.outputs.needs_escalation == 'true' &&
+      needs.claude-flaky-detect.outputs.should_retry != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: claude-fix-${{ github.event.workflow_run.id }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Check API Key
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY not configured"
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Note: head_branch is validated in 'validate' job with regex ^[a-zA-Z0-9/_.-]+$
+      # and fork PRs are rejected, making this safe for checkout
+      - name: Checkout code
+        if: steps.check-key.outputs.available == 'true'
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ needs.validate.outputs.head_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+
+      - name: Setup git identity
+        if: steps.check-key.outputs.available == 'true'
+        run: |
+          git config --global user.email "claude[bot]@users.noreply.github.com"
+          git config --global user.name "claude[bot]"
+
+      - name: Get failure details
+        if: steps.check-key.outputs.available == 'true'
+        id: failure
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          # Get failed job logs
+          LOGS=$(gh run view ${{ github.event.workflow_run.id }} --log-failed 2>/dev/null | tail -200 || echo "Failed to fetch logs")
+          
+          # Save to file for Claude
+          echo "$LOGS" > /tmp/failure_logs.txt
+          echo "logs_file=/tmp/failure_logs.txt" >> $GITHUB_OUTPUT
+
+      - name: Fix with Claude
+        if: steps.check-key.outputs.available == 'true'
+        uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
+          allowed_bots: "cursor[bot],jules[bot],google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
+          additional_permissions: |
+            actions: read
+          prompt: |
+            CI FAILURE FIX REQUEST
+
+            Repository: ${{ github.repository }}
+            Failed Workflow: ${{ github.event.workflow_run.name }}
+            PR: #${{ needs.validate.outputs.pr_number }}
+            Branch: ${{ needs.validate.outputs.head_branch }}
+            Run URL: ${{ github.event.workflow_run.html_url }}
+
+            The Ollama-based fixer couldn't resolve this. Please:
+            1. Read the failure logs in /tmp/failure_logs.txt
+            2. Diagnose the root cause
+            3. Implement a fix
+            4. Commit the fix to this branch
+            5. Run the project's lint/build commands to verify
+
+            DO NOT create a new PR - commit directly to the existing branch.
+
+          claude_args: |
+            --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(pnpm:*),Bash(npm:*),Bash(gh:*),mcp__github__get_pull_request,mcp__github__get_pull_request_diff,mcp__github_ci__get_ci_status,mcp__github_ci__download_job_log"
+
+  # ════════════════════════════════════════════════════════════════
+  # TIER 3: Jules Major Refactor (when fix requires significant changes)
+  # ════════════════════════════════════════════════════════════════
+  jules-refactor:
+    name: Jules Refactor
+    needs: [validate, ollama-fix, claude-flaky-detect, claude-fix]
+    if: |
+      always() &&
+      needs.validate.outputs.is_trusted == 'true' &&
+      needs.claude-flaky-detect.outputs.should_retry != 'true' &&
+      needs.claude-fix.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Check API Key
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.GOOGLE_JULES_API_KEY }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::GOOGLE_JULES_API_KEY not configured"
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Jules Session
+        if: steps.check-key.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+          REPO: ${{ github.repository }}
+          WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+          PR_NUM: ${{ needs.validate.outputs.pr_number }}
+          HEAD_BRANCH: ${{ needs.validate.outputs.head_branch }}
+        run: |
+          # All user-controlled values passed via env vars (head_branch validated in 'validate' job)
+          RESPONSE=$(curl -sf -X POST "https://jules.googleapis.com/v1alpha/sessions" \
+            -H "X-Goog-Api-Key: $GOOGLE_JULES_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg task "Fix CI failure in PR #${PR_NUM} - The automated fixers couldn't resolve this. Please analyze the failure at ${WORKFLOW_URL} and implement a comprehensive fix." \
+              --arg repo "$REPO" \
+              --arg branch "$HEAD_BRANCH" \
+              '{
+                prompt: $task,
+                sourceContext: {
+                  source: ("sources/github/" + $repo),
+                  githubRepoContext: { startingBranch: $branch }
+                },
+                requirePlanApproval: false,
+                automationMode: "AUTO_CREATE_PR"
+              }')" || echo "{}")
+
+          SESSION_ID=$(echo "$RESPONSE" | jq -r '.name // empty' | sed 's|sessions/||')
+
+          if [ -n "$SESSION_ID" ]; then
+            gh pr comment "$PR_NUM" --body "🔧 **Jules major refactor session started**: https://jules.google.com/session/${SESSION_ID} - Both Ollama and Claude couldn't fix this CI failure. Jules will attempt a more comprehensive solution."
+          fi
