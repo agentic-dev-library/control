@@ -3,21 +3,29 @@ name: Jules Supervisor
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   supervise:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Run Jules Supervisor
         env:
-          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-          CURSOR_GITHUB_TOKEN: ${{ secrets.CURSOR_GITHUB_TOKEN }}
-        run: node scripts/cursor-jules-orchestrator.mjs
+          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          echo "Jules Supervisor - monitors and triages Jules sessions"
+          # TODO: Implement supervisor logic when needed
