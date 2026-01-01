@@ -57,12 +57,12 @@ jobs:
             actions: read
           track_progress: true
           prompt: |
-            REPO: ${{ github.repository }}
-            CONTEXT: ${{ github.event.issue.pull_request && 'PR' || 'Issue' }} #${{ github.event.issue.number }}
-
-            A user has mentioned @claude. Respond helpfully to their request.
+            You are helping with ${{ github.repository }}.
             
-            Read the project's CLAUDE.md or AGENTS.md if available for context.
+            Context: ${{ github.event.issue.pull_request && 'Pull Request' || 'Issue' }} #${{ github.event.issue.number }}
+            
+            First, read CLAUDE.md, AGENTS.md, or README.md to understand the project.
+            Then address the user's request in their comment.
 
           claude_args: |
             --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(pnpm:*),Bash(npm:*),Bash(npx:*),Bash(bun:*),Bash(gh:*),mcp__github__get_issue,mcp__github__update_issue,mcp__github__add_issue_comment,mcp__github__list_issues,mcp__github__search_issues,mcp__github__get_pull_request,mcp__github__get_pull_request_diff,mcp__github__list_pull_request_commits,mcp__github__create_pull_request_review,mcp__github__add_pull_request_comment,mcp__github__create_pull_request,mcp__github__list_pull_requests,mcp__github__get_file_contents,mcp__github__list_files,mcp__github__create_or_update_file,mcp__github_inline_comment__create_inline_comment,mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_ci__download_job_log,mcp__github_ci__list_workflow_runs"

@@ -121,20 +121,13 @@ jobs:
           additional_permissions: |
             actions: read
           prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-
-            This PR was escalated for deep review (>5 issues or >500 lines).
-
-            Perform a thorough code review focusing on:
-            1. **Code Quality** - Clean code, best practices, maintainability
-            2. **Security** - Vulnerabilities, input validation, secrets handling
-            3. **Performance** - Bottlenecks, inefficient patterns
-            4. **Testing** - Coverage gaps, edge cases
-            5. **Documentation** - Missing or outdated docs
-
-            Provide inline comments for specific issues.
-            Summarize findings in a PR comment.
+            Review PR #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+            
+            This PR was escalated because it's large or complex.
+            
+            Review for: correctness, security, performance, and maintainability.
+            
+            Use inline comments for specific issues. Summarize in a PR comment.
 
           claude_args: |
             --allowedTools "Read,Glob,Grep,LS,Bash(gh:*),mcp__github__get_pull_request,mcp__github__get_pull_request_diff,mcp__github__list_pull_request_commits,mcp__github__create_pull_request_review,mcp__github__get_file_contents,mcp__github_inline_comment__create_inline_comment,mcp__github_ci__get_ci_status"

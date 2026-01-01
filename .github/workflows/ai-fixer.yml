@@ -280,22 +280,13 @@ jobs:
           additional_permissions: |
             actions: read
           prompt: |
-            CI FAILURE FIX REQUEST
-
-            Repository: ${{ github.repository }}
-            Failed Workflow: ${{ github.event.workflow_run.name }}
-            PR: #${{ needs.validate.outputs.pr_number }}
-            Branch: ${{ needs.validate.outputs.head_branch }}
-            Run URL: ${{ github.event.workflow_run.html_url }}
-
-            The Ollama-based fixer couldn't resolve this. Please:
-            1. Read the failure logs in /tmp/failure_logs.txt
-            2. Diagnose the root cause
-            3. Implement a fix
-            4. Commit the fix to this branch
-            5. Run the project's lint/build commands to verify
-
-            DO NOT create a new PR - commit directly to the existing branch.
+            Fix CI failure in ${{ github.repository }} PR #${{ needs.validate.outputs.pr_number }}.
+            
+            Failed workflow: ${{ github.event.workflow_run.name }}
+            Logs: /tmp/failure_logs.txt
+            
+            Diagnose the failure, implement a fix, and commit directly to this branch.
+            Verify your fix passes the build.
 
           claude_args: |
             --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(pnpm:*),Bash(npm:*),Bash(gh:*),mcp__github__get_pull_request,mcp__github__get_pull_request_diff,mcp__github_ci__get_ci_status,mcp__github_ci__download_job_log"

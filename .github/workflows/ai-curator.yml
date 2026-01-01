@@ -65,26 +65,11 @@ jobs:
           github_token: ${{ secrets.CI_GITHUB_TOKEN }}
           allowed_bots: "cursor[bot],jules[bot],google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
           prompt: |
-            REPO: ${{ github.repository }}
-            ISSUE_NUMBER: ${{ github.event.issue.number }}
-
-            Triage this new issue:
-
-            1. **LABELS**: Apply appropriate labels from:
-               - Type: bug, enhancement, documentation, question
-               - Priority: priority:critical, priority:high, priority:medium, priority:low
-
-            2. **DUPLICATES**: Search for similar issues. If found:
-               - Comment with link to duplicate
-               - Add "duplicate" label
-               - Close if clear duplicate
-
-            3. **VALIDATION**: Check if issue has:
-               - Clear description
-               - Reproduction steps (for bugs)
-               - Expected vs actual behavior
-
-            4. **RESPONSE**: Add a helpful comment acknowledging the issue.
+            Triage issue #${{ github.event.issue.number }} in ${{ github.repository }}.
+            
+            1. Add appropriate labels (bug/enhancement/docs, priority)
+            2. Check for duplicates - link and close if duplicate
+            3. Add a helpful acknowledgment comment
 
           claude_args: |
             --allowedTools "Read,Glob,Grep,LS,Bash(gh:*),mcp__github__get_issue,mcp__github__update_issue,mcp__github__add_issue_comment,mcp__github__list_issues,mcp__github__search_issues"
@@ -172,17 +157,9 @@ jobs:
           github_token: ${{ secrets.CI_GITHUB_TOKEN }}
           allowed_bots: "cursor[bot],jules[bot],google-labs-jules[bot],copilot-swe-agent[bot],dependabot[bot],renovate[bot],github-actions[bot]"
           prompt: |
-            REPO: ${{ github.repository }}
-
-            Scan open issues for duplicates:
-
-            1. List all open issues
-            2. Group similar issues by topic/description
-            3. For each duplicate group:
-               - Identify the canonical (oldest or most detailed) issue
-               - Comment on duplicates linking to canonical
-               - Add "duplicate" label to duplicates
-               - Recommend closing duplicates
+            Scan ${{ github.repository }} for duplicate issues.
+            
+            Find similar issues, link duplicates to the canonical issue, and close them.
 
           claude_args: |
             --allowedTools "Read,Glob,Grep,LS,Bash(gh:*),mcp__github__list_issues,mcp__github__search_issues,mcp__github__get_issue,mcp__github__update_issue,mcp__github__add_issue_comment"
@@ -219,26 +196,9 @@ jobs:
           jules_api_key: ${{ secrets.GOOGLE_JULES_API_KEY }}
           starting_branch: 'main'
           prompt: |
-            # 🐛 BUG FIX
-
-            **MUST CREATE PR with labels:** `jules-pr`, `bug-fix`, `auto-triage`
-            **Branch:** `jules/fix-issue-${{ github.event.issue.number }}`
-            **PR Title:** `🐛 Fix: [Brief description]`
-
-            ## Bug Report
-            **Issue:** #${{ github.event.issue.number }}
-            **Title:** ${{ github.event.issue.title }}
-
+            Fix issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+            
             ${{ github.event.issue.body }}
-
-            ## Process
-            1. Analyze the bug report
-            2. Trace the issue through the codebase
-            3. Implement minimal fix
-            4. Verify the build passes
-
-            ## PR Body MUST include:
-            - Summary: Fixes #${{ github.event.issue.number }}
-            - Root Cause: [explanation]
-            - Solution: [explanation]
-            - Testing checklist
+            
+            Create a PR on branch `jules/fix-issue-${{ github.event.issue.number }}` with labels `jules-pr`, `bug-fix`.
+            PR body must include: Fixes #${{ github.event.issue.number }}, root cause, and solution.
